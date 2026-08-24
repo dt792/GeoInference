@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="GeoInference.Tests/GeoInference.Tests.csproj" Id="18d89334-e2d9-4f45-95c8-ebb408962a41" />
+  <Project Path="GeoInference/GeoInference.csproj" />
+</Solution>
