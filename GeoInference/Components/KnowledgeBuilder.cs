@@ -891,8 +891,8 @@ public class ZScriptBuilder
             (@"^角(\w+)的Tan", match => GetAngleTan(match.Groups[1].Value)),
             (@"^角(\w+)的Cos", match => GetAngleCos(match.Groups[1].Value)),
             (@"^角(\w+_\w+_\w+)的Cos", match => GetAngleCos(match.Groups[1].Value.Replace('_', ','))),
-            (@"^角(\w+)的Sin", match => GetAngleSize(match.Groups[1].Value)),
-            (@"^角(\w+_\w+_\w+)的Sin", match => GetAngleSize(match.Groups[1].Value.Replace('_', ','))),
+            (@"^角(\w+)的Sin", match => GetAngleSin(match.Groups[1].Value)),
+            (@"^角(\w+_\w+_\w+)的Sin", match => GetAngleSin(match.Groups[1].Value.Replace('_', ','))),
             (@"^∠(\w+)", match => GetAngleSize(match.Groups[1].Value)),
             (@"^∠(\w+_\w+_\w+)", match => GetAngleSize(match.Groups[1].Value.Replace('_', ','))),
             (@"^角(\w+)", match => GetAngleSize(match.Groups[1].Value)),
@@ -939,6 +939,7 @@ public class ZScriptBuilder
     private GeoQuantity GetArcLength(string angleStr) => ((Arc)updater.Add((Arc)ParseKnowledge($"弧 {angleStr}"))).MinorArcLength;
     private GeoQuantity GetAngleTan(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Tan;
     private GeoQuantity GetAngleCos(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Cos;
+    private GeoQuantity GetAngleSin(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Sin;
     private GeoQuantity GetAngleSize(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Size;
     private GeoQuantity GetSectorArea(string sectorName) => ((Sector)updater.Add((Sector)ParseKnowledge($"扇形 {sectorName}"))).Area;
     private GeoQuantity GetSectorPerimeter(string sectorName) => ((Sector)updater.Add((Sector)ParseKnowledge($"扇形 {sectorName}"))).Perimeter;
