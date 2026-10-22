@@ -1,6 +1,5 @@
 ﻿
 using GeoInference.Definitions.Knowledges;
-using System.Runtime.CompilerServices;
 namespace GeoInference.Knowledges;
 
 public abstract class Predicate : Knowledge
@@ -10,6 +9,25 @@ public abstract class Predicate : Knowledge
     public List<Predicate> Properties { get; set; } = new List<Predicate>();
     public Expr Expr { get; set; }
     #region 
+    protected void Add(params Predicate[] preds)
+    {
+        foreach (var pred in preds)
+        {
+            if (pred is null)
+                throw new ArgumentNullException();
+            Properties.Add(pred);
+            if (Level <= pred.Level)
+            {
+                Level = pred.Level + 1;
+            }
+        }
+    }
+    protected void Add(Expr expr)
+    {
+        if (expr.Value == "undefined")
+            IsAvailable = false;
+        Expr = expr;
+    }
     protected void Add(params object[] objs)
     {
         foreach (var obj in objs)
@@ -42,12 +60,14 @@ public abstract class Predicate : Knowledge
     public override void SetHashCode()
     {
         HashCode = ClassIndexDict[GetType().FullName] << 54;
-        for (int k = 0; k < Properties.Count && k < 9; ++k)
+        for (int k = 0; k < Properties.Count; ++k)
         {
             if (k == 0)
                 HashCode |= Properties[k].PosIndex;
+            else if (k < 6)
+                HashCode |= (ulong)Properties[k].PosIndex << k * 9;
             else
-                HashCode |= (ulong)Properties[k].PosIndex << k * 6;
+                HashCode ^= (ulong)Properties[k].PosIndex << ((k - 5) * 7);
         }
     }
     #endregion
@@ -59,12 +79,9 @@ public abstract class Predicate : Knowledge
     }
     public virtual Predicate Clone()
     {
-        var newPred = (Predicate)RuntimeHelpers.GetUninitializedObject(GetType());
+        var newPred = (Predicate)MemberwiseClone();
         newPred.Properties = new List<Predicate>(Properties);
         newPred.Conditions = new List<Knowledge>();
-        newPred.Expr = Expr;
-        newPred.IsAvailable = IsAvailable;
-        newPred.HashCode = HashCode;
         return newPred;
     }
     public override string ToString()
@@ -83,6 +100,43 @@ public abstract class Predicate : Knowledge
     #endregion
 
     #region Normalizations
+    /// <summary>
+    /// </summary>
+    public void NormalizeForPairedQuadrilateral()
+    {
+        int size = this.Properties.Count;
+        int num = size / 2;
+        int flag = 0;
+        Point point = (Point)Properties[0];
+        Point[] pointPreds = new Point[size];
+        Properties.CopyTo(pointPreds);
+        for (int i = 1; i < num; i++)
+        {
+            if (Properties[i].PosIndex < point.PosIndex)
+            {
+                flag = i;
+                point = (Point)Properties[i];
+            }
+        }
+        for (int i = 0; i < num; i++)
+        {
+            int z = (i - flag + num) % num;
+            Properties[z] = pointPreds[i];
+            Properties[z + num] = pointPreds[i + num];
+        }
+        if (Properties[1].PosIndex > Properties[num - 1].PosIndex)
+        {
+            for (int i = 1; i <= num / 2; i++)
+            {
+                Point temp = (Point)Properties[i];
+                Properties[i] = Properties[num - i];
+                Properties[num - i] = temp;
+                Point temp1 = (Point)Properties[i + num];
+                Properties[i + num] = Properties[2 * num - i];
+                Properties[2 * num - i] = temp1;
+            }
+        }
+    }
     public void NormalizeForPrism()
     {
         int size = this.Properties.Count;

@@ -8,6 +8,7 @@ internal class PointRules : RuleClass
         Segment segment1 = GetSegment(midpoint[1], midpoint[2]) as Segment;
         Segment segment2 = GetSegment(midpoint[0], midpoint[1]) as Segment;
         Segment segment3 = GetSegment(midpoint[0], midpoint[2]) as Segment;
+        if (segment1 is null || segment2 is null || segment3 is null) return;
 
         QuantityRatio segmentLengthEqual = new QuantityRatio(segment2.Length, segment3.Length);
         QuantityRatio lengthRatio1 = new QuantityRatio(segment1.Length, segment2.Length, 2);
@@ -56,6 +57,7 @@ internal class PointRules : RuleClass
         var ab = GetSegment(pointWithIn[0], pointWithIn[1]);
         var ac = GetSegment(pointWithIn[0], pointWithIn[2]);
         var bc = GetSegment(pointWithIn[1], pointWithIn[2]);
+        if (ab is null || ac is null || bc is null) return;
         if (ratio[0] == bc)
         {
             if (ratio[1] == ab || ratio[1] == ac)
@@ -146,6 +148,7 @@ internal class PointRules : RuleClass
         var ab = GetSegment(p.Point, p.EndPoint1);
         var bc = GetSegment(p.Point, p.EndPoint2);
         var ac = GetSegment(p.EndPoint1, p.EndPoint2);
+        if (ab is null || bc is null || ac is null) return;
         LinearEquation pred = new LinearEquation(new() { { ab.Length, 1 }, { bc.Length, 1 }, { ac.Length, -1 } }, 0);
         pred.AddReason();
         pred.AddCondition(p);

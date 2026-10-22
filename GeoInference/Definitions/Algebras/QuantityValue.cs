@@ -1,5 +1,4 @@
 ﻿using GeoInference.Definitions.Knowledges;
-using GeoInference.MergeKnowledges;
 
 public class QuantityValue : Equation
 {
@@ -21,6 +20,7 @@ public class QuantityValue : Equation
     }
     public Knowledge ToPred()
     {
+        Knowledge pred = null;
         if (Quantity is GeoQuantity q)
         {
             if (q.Figures.Count() == 1)
@@ -31,37 +31,41 @@ public class QuantityValue : Equation
                 {
                     if (PropName is Quantity.Size)
                     {
-                        return new AngleSize(angle, Expr);
+                        pred = new AngleSize(angle, Expr);
                     }
                     else if (PropName is Quantity.Cos)
                     {
-                        return new AngleCos(angle, Expr);
+                        pred = new AngleCos(angle, Expr);
                     }
                     else if (PropName is Quantity.Sin)
                     {
-                        return new AngleSin(angle, Expr);
+                        pred = new AngleSin(angle, Expr);
                     }
                     else if (PropName is Quantity.Tan)
                     {
-                        return new AngleTan(angle, Expr);
+                        pred = new AngleTan(angle, Expr);
                     }
 
                 }
                 else if (Figure is Segment segment)
                 {
-                    return new SegmentLength(segment, Expr);
+                    pred = new SegmentLength(segment, Expr);
                 }
                 else if (Figure is Arc arc)
                 {
                     if (PropName is Quantity.Size)
                     {
-                        return new ArcSize(arc, Expr);
+                        pred = new ArcSize(arc, Expr);
                     }
                 }
             }
         }
-        return null;
-
+        if (pred is not null)
+        {
+            pred.Reason = Reason;
+            pred.Conditions.AddRange(Conditions);
+        }
+        return pred;
     }
     public override string ToString()
     {

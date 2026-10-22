@@ -7,12 +7,11 @@ using Newtonsoft.Json;
 
 using System.Text;
 
-
 public class Program
 {
     public static async Task Main(string[] args)
     {
-        GeoInferenceApp.IsZhOrEn = false;
+        GeoInferenceApp.UseChinese = true;
         if (args == null || args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
         {
             Console.WriteLine("❌ 缺少任务参数（应为 Base64 编码的任务 JSON）");
@@ -32,9 +31,9 @@ public class Program
             return;
         }
 
-        GeoInferenceConfig config = GeoInferenceConfigs.Comfigs.TryGetValue(taskArgs.Config, out var c)
+        GeoInferenceConfig config = GeoInferenceConfigs.Configs.TryGetValue(taskArgs.Config, out var c)
             ? c
-            : GeoInferenceConfigs.SolvingDebug;
+            : GeoInferenceConfigs.Solving;
 
         var server = new PipeServer<string>(taskArgs.PipeName);
         var clientConnected = new TaskCompletionSource();
@@ -43,7 +42,7 @@ public class Program
         try
         {
             await server.StartAsync();
-            
+
             await clientConnected.Task;
 
             try
@@ -66,7 +65,6 @@ public class Program
                 await server.WriteAsync(GeoInferenceExeCaller.Cracked);
             }
 
-            
             await Task.Delay(300);
         }
         catch (Exception ex)
@@ -89,43 +87,3 @@ public class Program
         File.WriteAllText(savePath, json);
     }
 }
-
-//GeoProblemDataset.Instance.RebuildIndex(GeoProblemDataset.DatasetPath);
-//var problem = GeoProblemDataset.Instance["FormalGeo7KL6"]["1106"];
-
-
-//var configName = "default";
-//var question = problem.Problem_Input_CN;
-////question = @"Points:A(0,0) B(0,1) C(1,1) D(1,2) E(2,2) F(2,3)
-////LineParallel AB,CD
-////LineParallel CD,EF
-////Prove:LineParallel AB,EF
-////";
-//if (args.Count() == 1)
-//{
-//    question = args[0];
-//}
-//else if (args.Count() == 2)
-//{
-//    configName = args[0];
-//    question = args[1];
-//}
-//GeoInferenceApp app = new();
-//var config = GeoInferenceConfigs.Comfigs[configName];
-//var script = new ZScriptInput() { Script = question };
-//app.Initialize(config);
-//app.Inference(script);
-//var result = app.MakeResult();
-//Console.WriteLine(JsonTool.ToJson(result));
-
-////foreach (var item in GeoProblemDataset.Instance["FormalGeo7KL6"].Take(100))
-////{
-////    app = new();
-////     question = problem.Problem_Input_CN;
-////     config = GeoInferenceConfigs.Comfigs[configName];
-////     script = new ZScriptInput() { Script = question };
-////    app.Initialize(config);
-////    app.Inference(script);
-////    result = app.MakeResult();
-////    Console.WriteLine(JsonTool.ToJson(result));
-////}

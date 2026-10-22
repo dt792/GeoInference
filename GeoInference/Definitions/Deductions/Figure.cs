@@ -6,4 +6,13 @@ public abstract class Figure : Predicate
     {
         return "default";
     }
+
+    protected GeoQuantity GetQuantity(ref GeoQuantity cache, string propName)
+    {
+        if (ReferenceEquals(cache, null))
+        {
+            cache = new GeoQuantity([this], propName);
+        }
+        return cache;
+    }
 }

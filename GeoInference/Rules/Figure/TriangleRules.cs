@@ -504,12 +504,6 @@ internal class TriangleRules : RuleClass
         }
     }
 
-    [Alias("直角三角形由角求三边之比")]
-    public void RuleTr04CalculateThreeSideRatiosFromOneAngleInRightTriangle(RightTriangle triangle, AngleCos angleValue)
-    {
-        return;
-    }
-
     [Alias("三角形内角和定理")]
     public void RuleTriGeoQuantity01TriangleInteriorAngleSumFormula(Triangle triangle)
     {
@@ -755,9 +749,9 @@ internal class TriangleRules : RuleClass
             know.AddCondition(tri, withInPoints);
             updater.Add(know);
         }
-        else if (tri[2] == withInPoints[1] && tri[1] == withInPoints[2] || tri[1] == withInPoints[1] && tri[2] == withInPoints[2])
+        else if (tri[2] == withInPoints[1] && tri[0] == withInPoints[2] || tri[0] == withInPoints[1] && tri[2] == withInPoints[2])
         {
-            var e = tri[0];
+            var e = tri[1];
             var tri1 = GetTriangle((Point)e, (Point)withInPoints[0], (Point)withInPoints[1]);
             var tri2 = GetTriangle((Point)e, (Point)withInPoints[0], (Point)withInPoints[2]);
             if (tri1 is null || tri2 is null) return;

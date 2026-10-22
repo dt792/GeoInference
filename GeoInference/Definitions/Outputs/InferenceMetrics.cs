@@ -61,6 +61,7 @@ public class InferenceMetrics
     public double OverallKnowlegeCompressionRate { get => 1 - (double)(MergedFigureCount + MergedRelationCount + UnrelatedFigureCount + UnrelatedRelationCount) / (ClassicFigureCount + ClassicRelationCount + UnrelatedFigureCount + UnrelatedRelationCount); }
     #endregion
     #region Rule-Related-Data
+    public ulong ActualRuleInstantiationCount { get; set; } = 0;
     public ulong ClassicRulePairCount { get; set; } = 0;
     public ulong MergedRulePairCount { get; set; } = 0;
     public ulong ClassicSemiRulePairCount { get; set; } = 0;

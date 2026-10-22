@@ -1,4 +1,4 @@
-﻿namespace ZGeoReasoning.Definitions.Deductions;
+﻿namespace GeoInference.Knowledges;
 
 public class RulePredPair
 {

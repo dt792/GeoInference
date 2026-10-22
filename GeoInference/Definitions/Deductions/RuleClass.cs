@@ -3,7 +3,7 @@ using System.Numerics;
 
 public enum RuleType
 {
-    Undefinded,
+    Undefined,
 
     Internal,
     BaseFigureSearching,
@@ -36,8 +36,8 @@ public class RuleClass
     public virtual Segment GetSegment(Predicate p1, Predicate p2)
     {
         Segment segment = new Segment((Point)p1, (Point)p2);
-        if (KnowledgeBase.Predicates.ContainsKey(segment.HashCode))
-            return (Segment)KnowledgeBase.Predicates[segment.HashCode];
+        if (KnowledgeBase.Predicates.TryGetValue(segment.HashCode, out var existing))
+            return (Segment)existing;
         return null;
     }
     public virtual Arc GetArc(Predicate p1, Predicate p2, Predicate p3)
@@ -53,9 +53,10 @@ public class RuleClass
 
     public virtual Angle GetAngle(Predicate p1, Predicate v, Predicate p2)
     {
-        var list = KnowledgeBase.Categories[typeof(Angle)].Where(a => a.IsAvailable).Where(a => ((Angle)a).Vertex == v).ToList();
-        foreach (Angle angle in list)
+        foreach (Angle angle in KnowledgeBase.Categories[typeof(Angle)])
         {
+            if (!angle.IsAvailable || angle.Vertex != v)
+                continue;
             if ((angle.Edge1.Contains(p1) && angle.Edge2.Contains(p2) || angle.Edge2.Contains(p1) && angle.Edge1.Contains(p2)))
                 return angle;
         }
@@ -84,9 +85,10 @@ public class RuleClass
     }
     public virtual Circle GetCircle(Predicate c, Predicate e)
     {
-        var list = KnowledgeBase.Categories[typeof(Circle)].Where(a => a.IsAvailable).Where(a => ((Circle)a).Center == c).ToList();
-        foreach (Circle pred in list)
+        foreach (Circle pred in KnowledgeBase.Categories[typeof(Circle)])
         {
+            if (!pred.IsAvailable || pred.Center != c)
+                continue;
             if (pred.Properties.Contains(e))
                 return pred;
         }
@@ -96,21 +98,21 @@ public class RuleClass
     {
         if (p1 == p2 || p2 == p3 || p1 == p3)
             return null;
-        foreach (var pred in KnowledgeBase.Categories[typeof(Triangle)])
+        foreach (var pred in KnowledgeBase.Categories[typeof(Triangle)].Where(a => a.IsAvailable))
         {
             if (pred.Properties.Contains(p1) && pred.Properties.Contains(p2) && pred.Properties.Contains(p3))
                 return (Triangle)pred;
         }
         return null;
     }
-    public virtual Quadriliateral GetQuadriliateral(Point p1, Point p2, Point p3, Point p4)
+    public virtual Quadrilateral GetQuadrilateral(Point p1, Point p2, Point p3, Point p4)
     {
-        if (p1 == p2 || p2 == p3 || p1 == p3)
+        if (p1 == p2 || p1 == p3 || p1 == p4 || p2 == p3 || p2 == p4 || p3 == p4)
             return null;
-        foreach (var pred in KnowledgeBase.Categories[typeof(Quadriliateral)])
+        foreach (var pred in KnowledgeBase.Categories[typeof(Quadrilateral)].Where(a => a.IsAvailable))
         {
             if (pred.Properties.Contains(p1) && pred.Properties.Contains(p2) && pred.Properties.Contains(p3) && pred.Properties.Contains(p4))
-                return (Quadriliateral)pred;
+                return (Quadrilateral)pred;
         }
         return null;
     }
@@ -119,17 +121,15 @@ public class RuleClass
     public virtual bool HasSegment(Predicate p1, Predicate p2)
     {
         Segment segment = new Segment((Point)p1, (Point)p2);
-        if (KnowledgeBase.Predicates.ContainsKey(segment.HashCode))
-            return true;
-        return false;
+        return KnowledgeBase.Predicates.ContainsKey(segment.HashCode);
     }
     public virtual bool HasColine(params IEnumerable<Predicate> points)
     {
-        Line lineTemplete = new Line(points.Select(p => (Point)p).ToArray());
-        List<Predicate> lines = new();
+        var pts = points as ICollection<Predicate> ?? points.ToList();
         foreach (var line in KnowledgeBase.Categories[typeof(Line)])
         {
-            if (points.ToList().TrueForAll(p => line.Properties.Contains(p)))
+            HashSet<Predicate> lineProps = new(line.Properties);
+            if (pts.All(lineProps.Contains))
                 return true;
         }
         return false;
@@ -138,39 +138,15 @@ public class RuleClass
 
     public virtual GeoQuantity GetPointToLineDistance(Point p, Line line)
     {
-        return null;
-        //if (!KnowledgeBase.Categories.ContainsKey(typeof(PointToLineDistance))) return null;
-        //var lines = KnowledgeBase.Categories[typeof(PointToLineDistance)].Where(l => l.IsAvailable);
-        //foreach (var pred in lines)
-        //{
-        //    if (pred.Properties.Contains(p) && pred.Properties.Contains(line))
-        //        return (PointToLineDistance)pred;
-        //}
-        //return null;
+        var q = new GeoQuantity([p, line], GeoQuantity.Distance);
+        updater.TryAddGeoQuantity(q);
+        return KnowledgeBase.Quantities[q.ToString()] as GeoQuantity;
     }
-    //public virtual GeoQuantity GetPointToPlaneDistance(Point p, Plane plane)
-    //{
-    //    return null;
-        //if (!KnowledgeBase.Categories.ContainsKey(typeof(PointToPlaneDistance))) return null;
-        //var lines = KnowledgeBase.Categories[typeof(PointToPlaneDistance)].Where(l => l.IsAvailable);
-        //foreach (var pred in lines)
-        //{
-        //    if (pred.Properties.Contains(p) && pred.Properties.Contains(plane))
-        //        return (PointToPlaneDistance)pred;
-        //}
-        //return null;
-    //}
     public virtual GeoQuantity GetLineToLineDistance(Line p, Line plane)
     {
-        return null;
-        //if (!KnowledgeBase.Categories.ContainsKey(typeof(LineToLineDistance))) return null;
-        //var lines = KnowledgeBase.Categories[typeof(LineToLineDistance)].Where(l => l.IsAvailable);
-        //foreach (var pred in lines)
-        //{
-        //    if (pred.Properties.Contains(p) && pred.Properties.Contains(plane))
-        //        return (LineToLineDistance)pred;
-        //}
-        //return null;
+        var q = new GeoQuantity([p, plane], GeoQuantity.Distance);
+        updater.TryAddGeoQuantity(q);
+        return KnowledgeBase.Quantities[q.ToString()] as GeoQuantity;
     }
 
     #region Tools
@@ -204,11 +180,11 @@ public class RuleClass
     public virtual Predicate GetJudgeIpsilateral(Point point1, Point point2, Point point3, Point point4)
     {
         var a = new PointsOnLineSameSide(point1, point2, point3, point4);
-        if (KnowledgeBase.Predicates.ContainsKey(a.HashCode))
-            return KnowledgeBase.Predicates[a.HashCode];
+        if (KnowledgeBase.Predicates.TryGetValue(a.HashCode, out var existingA))
+            return existingA;
         var b = new PointsOnLineDifferentSide(point1, point2, point3, point4);
-        if (KnowledgeBase.Predicates.ContainsKey(b.HashCode))
-            return KnowledgeBase.Predicates[b.HashCode];
+        if (KnowledgeBase.Predicates.TryGetValue(b.HashCode, out var existingB))
+            return existingB;
         var dd = _GetJudgeIpsilateral(point1, point2, point3, point4);
         if (dd is not null)
         {
@@ -221,8 +197,8 @@ public class RuleClass
     public virtual Predicate GetPointWithin(Point point1, Point point2, Point point3)
     {
         var a = new PointOnSeg(point1, point2, point3);
-        if (KnowledgeBase.Predicates.ContainsKey(a.HashCode))
-            return KnowledgeBase.Predicates[a.HashCode];
+        if (KnowledgeBase.Predicates.TryGetValue(a.HashCode, out var existing))
+            return existing;
         var pred = _GetPointWithin(point1, point2, point3);
         if (pred is not null)
         {
@@ -342,36 +318,31 @@ public class RuleClass
         float crossAP = A.X * P.Y - A.Y * P.X;
         float crossPB = P.X * B.Y - P.Y * B.X; 
 
-        
         const float epsilon = 1e-6f;
 
-        
-        
-        
-        
         return (crossAP * crossAB >= -epsilon) && (crossPB * crossAB >= -epsilon);
     }
-    public bool IsInQuadriliateral(Predicate quadriliateral, Point p1, Point p2, Point p3)
+    public bool IsInQuadrilateral(Predicate quadrilateral, Point p1, Point p2, Point p3)
     {
-        if (quadriliateral.Properties.Count != 4)
-            throw new Exception("错误使用IsInQuadriliateral函数");
-        if (quadriliateral[1] == p1 && quadriliateral[0] == p2 && quadriliateral[3] == p3 ||
-            quadriliateral[3] == p1 && quadriliateral[0] == p2 && quadriliateral[1] == p3)
+        if (quadrilateral.Properties.Count != 4)
+            throw new Exception("错误使用IsInQuadrilateral函数");
+        if (quadrilateral[1] == p1 && quadrilateral[0] == p2 && quadrilateral[3] == p3 ||
+            quadrilateral[3] == p1 && quadrilateral[0] == p2 && quadrilateral[1] == p3)
         {
             return true;
         }
-        else if (quadriliateral[0] == p1 && quadriliateral[1] == p2 && quadriliateral[2] == p3 ||
-            quadriliateral[2] == p1 && quadriliateral[1] == p2 && quadriliateral[0] == p3)
+        else if (quadrilateral[0] == p1 && quadrilateral[1] == p2 && quadrilateral[2] == p3 ||
+            quadrilateral[2] == p1 && quadrilateral[1] == p2 && quadrilateral[0] == p3)
         {
             return true;
         }
-        else if (quadriliateral[1] == p1 && quadriliateral[2] == p2 && quadriliateral[3] == p3 ||
-            quadriliateral[3] == p1 && quadriliateral[2] == p2 && quadriliateral[1] == p3)
+        else if (quadrilateral[1] == p1 && quadrilateral[2] == p2 && quadrilateral[3] == p3 ||
+            quadrilateral[3] == p1 && quadrilateral[2] == p2 && quadrilateral[1] == p3)
         {
             return true;
         }
-        else if (quadriliateral[2] == p1 && quadriliateral[3] == p2 && quadriliateral[0] == p3 ||
-            quadriliateral[0] == p1 && quadriliateral[3] == p2 && quadriliateral[2] == p3)
+        else if (quadrilateral[2] == p1 && quadrilateral[3] == p2 && quadrilateral[0] == p3 ||
+            quadrilateral[0] == p1 && quadrilateral[3] == p2 && quadrilateral[2] == p3)
         {
             return true;
         }
@@ -386,7 +357,7 @@ public class RuleClass
      Point pointB,
      Point pointP)
     {
-        return (bool)IsOnMinorArc((center.X, center.Y), (pointA.X, pointA.Y), (pointB.X, pointB.Y), (pointP.X, pointP.Y));
+        return IsOnMinorArc((center.X, center.Y), (pointA.X, pointA.Y), (pointB.X, pointB.Y), (pointP.X, pointP.Y)) == true;
     }
 
     /// <summary>
@@ -442,22 +413,68 @@ public class RuleClass
         }
         return normalized;
     }
+
+    /// <summary>
+    /// Sorts points by their distance from the vertex, from near to far.
+    /// </summary>
+    protected static List<Point> SortByDistanceFrom(Point vertex, IEnumerable<Point> points)
+    {
+        return points.OrderBy(p =>
+            (p.X - vertex.X) * (p.X - vertex.X) + (p.Y - vertex.Y) * (p.Y - vertex.Y)).ToList();
+    }
+
+    /// <summary>
+    /// Determines whether point P lies outside the circle.
+    /// </summary>
+    protected static bool IsOutsideCircle(Circle circle, Point p)
+    {
+        if (circle.Properties.Skip(1).OfType<Point>().FirstOrDefault() is not Point rp)
+            return false;
+        double r2 = (rp.X - circle.Center.X) * (rp.X - circle.Center.X) + (rp.Y - circle.Center.Y) * (rp.Y - circle.Center.Y);
+        double d2 = (p.X - circle.Center.X) * (p.X - circle.Center.X) + (p.Y - circle.Center.Y) * (p.Y - circle.Center.Y);
+        return d2 > r2;
+    }
+
+    /// <summary>
+    /// Determines whether the arc AB intercepted by an external secant/tangent angle is the minor arc.
+    /// The intercepted arc is the one NOT containing the other intersection points of the angle's sides
+    /// with the circle; if any of them lies on the minor arc AB, the intercepted arc is the major arc
+    /// (whose measure is 360 - Size).
+    /// </summary>
+    protected static bool IsInterceptedArcMinor(Point center, Point a, Point b, params Point[] others)
+    {
+        return !others.Any(o => IsOnMinorArc(center, a, b, o));
+    }
+
+    /// <summary>
+    /// Builds the exterior-angle equation 2·angle = farArc − nearArc.
+    /// An intercepted major arc is expressed as 360 - Size.
+    /// </summary>
+    protected static LinearEquation ExteriorAngleArcEquation(GeoQuantity angleSize, Arc nearArc, bool nearIsMinor, Arc farArc, bool farIsMinor)
+    {
+        Dictionary<Quantity, Expr> coff = new()
+        {
+            { angleSize, 2 },
+            { nearArc.Size, nearIsMinor ? 1 : -1 },
+            { farArc.Size, farIsMinor ? -1 : 1 }
+        };
+        Expr constant = (farIsMinor ? 0 : 360) - (nearIsMinor ? 0 : 360);
+        return new LinearEquation(coff, constant);
+    }
     public static bool IsTrapezoid(params Point[] points) => TrapezoidHelper.IsTrapezoid(points);
     public static class TrapezoidHelper
     {
-        private const double Epsilon = 1e-9;
+        private const double Epsilon = 1e-4;
         private static double Hypot(double x, double y) => Math.Sqrt(x * x + y * y);
         public static bool IsTrapezoid(params Point[] points)
         {
             if (points.Length != 4)
                 throw new ArgumentException("必须提供四个点");
 
-            
             var hull = GetConvexHull(points);
             if (hull.Count != 4)
                 return false;
 
-            
             var edges = new Vector[4];
             for (int i = 0; i < 4; i++)
             {
@@ -466,11 +483,9 @@ public class RuleClass
                 edges[i] = new Vector(p2.X - p1.X, p2.Y - p1.Y);
             }
 
-            
             bool parallel0 = AreParallel(edges[0], edges[2]); 
             bool parallel1 = AreParallel(edges[1], edges[3]); 
 
-            
             return parallel0 ^ parallel1; 
         }
         private static List<Point> GetConvexHull(Point[] points)
@@ -478,7 +493,6 @@ public class RuleClass
             var list = new List<Point>(points);
             if (list.Count < 3) return list;
 
-            
             Point lowest = list[0];
             foreach (var p in list)
             {
@@ -486,7 +500,6 @@ public class RuleClass
                     lowest = p;
             }
 
-            
             list.Sort((a, b) =>
             {
                 if (a.Equals(lowest)) return -1;
@@ -504,7 +517,6 @@ public class RuleClass
                 return angleA.CompareTo(angleB);
             });
 
-            
             var hull = new List<Point>();
             foreach (var p in list)
             {
@@ -526,7 +538,6 @@ public class RuleClass
             public Vector(double x, double y) { X = x; Y = y; }
         }
 
-        
         private static bool AreParallel(Vector v1, Vector v2)
         {
             return Math.Abs(v1.X * v2.Y - v1.Y * v2.X) < Epsilon;
@@ -592,9 +603,10 @@ public class RuleClass
     }
     public Predicate FindCIntersection(IEnumerable<Predicate> pms1, IEnumerable<Predicate> pms2)
     {
+        HashSet<Predicate> set2 = new(pms2);
         foreach (var item in pms1)
         {
-            if (pms2.Contains(item))
+            if (set2.Contains(item))
                 return item;
         }
         return null;
@@ -609,23 +621,16 @@ public class RuleClass
     }
     public (List<T> intersection, List<T> left1, List<T> left2) FindIntersection<T>(List<T> pms1, List<T> pms2) where T : Predicate
     {
-        List<T> intersection;
-        List<T> left1;
-        List<T> left2;
-        intersection = pms1.Where(p => pms2.Contains(p)).ToList();
-        left1 = pms1.Where(p => !pms2.Contains(p)).ToList();
-        left2 = pms2.Where(p => !pms1.Contains(p)).ToList();
+        HashSet<T> set1 = new(pms1);
+        HashSet<T> set2 = new(pms2);
+        List<T> intersection = pms1.Where(set2.Contains).ToList();
+        List<T> left1 = pms1.Where(p => !set2.Contains(p)).ToList();
+        List<T> left2 = pms2.Where(p => !set1.Contains(p)).ToList();
         return (intersection, left1, left2);
     }
     public (List<Predicate> intersection, List<Predicate> left1, List<Predicate> left2) FindIntersection(List<Predicate> pms1, List<Predicate> pms2)
     {
-        List<Predicate> intersection;
-        List<Predicate> left1;
-        List<Predicate> left2;
-        intersection = pms1.Where(p => pms2.Contains(p)).ToList();
-        left1 = pms1.Where(p => !pms2.Contains(p)).ToList();
-        left2 = pms2.Where(p => !pms1.Contains(p)).ToList();
-        return (intersection, left1, left2);
+        return FindIntersection<Predicate>(pms1, pms2);
     }
 
 }

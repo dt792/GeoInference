@@ -73,7 +73,6 @@ public class Expr
     public static Expr Two { get; } = new("2");
     public static Expr Three { get; } = new("3");
     public static Expr Infinity { get; } = new("infinity");
-    
 
     #region Basic Algebra Operations
 
@@ -126,39 +125,6 @@ public class Expr
     { "150", "-1/3*3^(1/2)" },
     { "180", "0" },
 };
-    //private static readonly Dictionary<string, string> SinSpecialValues = new()
-    //{
-    //    { "Pi/6", "1/2" },
-    //    { "Pi/4", "1/2*2^(1/2)" },
-    //    { "Pi/3", "1/2*3^(1/2)" },
-    //    { "Pi/2", "1" },
-    //    { "(2*Pi)/3", "1/2*3^(1/2)" },
-    //    { "(3*Pi)/4", "1/2*2^(1/2)" },
-    //    { "(5*Pi)/6", "1/2" },
-    //};
-
-    //private static readonly Dictionary<string, string> CosSpecialValues = new()
-    //{
-    //    { "Pi/6", "1/2*3^(1/2)" },
-    //    { "Pi/4", "1/2*2^(1/2)" },
-    //    { "Pi/3", "1/2" },
-    //    { "Pi/2", "1" },
-    //    { "(2*Pi)/3", "-1/2" },
-    //    { "(3*Pi)/4", "-1/2*2^(1/2)" },
-    //    { "(5*Pi)/6", "-1/2*3^(1/2)" },
-    //};
-
-    //private static readonly Dictionary<string, string> TanSpecialValues = new()
-    //{
-    //    { "Pi/6", "1/3*3^(1/2)" },
-    //    { "Pi/4", "1" },
-    //    { "Pi/3", "3^(1/2)" },
-    //    { "Pi/2", "infinity" },
-    //    { "(2*Pi)/3", "-3^(1/2)" },
-    //    { "(3*Pi)/4", "-1" },
-    //    { "(5*Pi)/6", "-1/3*3^(1/2)" },
-    //    { "Pi", "0" },
-    //};
 
     public static IReadOnlyDictionary<string, string> SizeToSinSpecialValues => SinSpecialValues;
     public static IReadOnlyDictionary<string, string> SizeToCosSpecialValues => CosSpecialValues;
@@ -202,13 +168,16 @@ public class Expr
 
     #region Comparison Operations
 
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string), bool> _isEqualCache = new();
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string), ExprCompareResult> _compareCache = new();
+
     public bool IsEqual(Expr expr)
     {
         if (expr is null) return false;
         if (Value == expr.Value) return true;
 
-        string result = Engine.Run($"evalb({Value}={expr.Value});");
-        return result == "true";
+        return _isEqualCache.GetOrAdd((Value, expr.Value), static key =>
+            Engine.Run($"evalb({key.Item1}={key.Item2});") == "true");
     }
 
     public ExprCompareResult CompareTo(Expr expr)
@@ -218,14 +187,19 @@ public class Expr
 
     public ExprCompareResult CompareTo(string expr)
     {
-        string eqResult = Engine.Run($"evalb({Value}={expr});");
-        if (eqResult == "true") return ExprCompareResult.Equal;
+        if (Value == expr) return ExprCompareResult.Equal;
 
-        string gtResult = Engine.Run($"verify({Value}, {expr}, greater_than);");
-        if (gtResult == "true") return ExprCompareResult.Greater;
-        if (gtResult == "false") return ExprCompareResult.Less;
+        return _compareCache.GetOrAdd((Value, expr), static key =>
+        {
+            string eqResult = Engine.Run($"evalb({key.Item1}={key.Item2});");
+            if (eqResult == "true") return ExprCompareResult.Equal;
 
-        return ExprCompareResult.Unknown;
+            string gtResult = Engine.Run($"verify({key.Item1}, {key.Item2}, greater_than);");
+            if (gtResult == "true") return ExprCompareResult.Greater;
+            if (gtResult == "false") return ExprCompareResult.Less;
+
+            return ExprCompareResult.Unknown;
+        });
     }
 
     #endregion

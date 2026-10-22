@@ -4,20 +4,77 @@ using System.Reflection;
 public class PermutationAttribute : Attribute { }
 public class RuleSolver
 {
-    [DI] KnowledgeBase knowledgeBase { get; set; }
-    [DI] KnowledgeBaseUpdater Updater { get; set; }
+    [DI] public KnowledgeBase knowledgeBase { get; set; }
+    [DI] public KnowledgeBaseUpdater Updater { get; set; }
     public Queue<RulePredPair> Pairs { get; set; } = [];
+    public ulong ActualRuleInstantiationCount { get; private set; } = 0;
     public bool HasNext { get => Pairs.Count > 0; }
     public RulePredPair Next() => Pairs.Dequeue();
     public void Solve(RulePredPair pair)
     {
-        pair.RuleInfo.RuleMethod.Invoke(pair.RuleInfo.RuleClass, pair.Args);
-        
+        ActualRuleInstantiationCount++;
+        var diagTs = SemiRuleDiagnostics.OnRuleInvokeStart(pair.RuleInfo);
+        pair.RuleInfo.Invoker(pair.RuleInfo.RuleClass, pair.Args);
+        SemiRuleDiagnostics.OnRuleInvokeEnd(pair.RuleInfo, diagTs);
     }
-    [DI] ZSingletonDI DI { get; set; }
+    static IEnumerable<Predicate> AvailableRange(List<Predicate> list, int start, int end)
+    {
+        for (int i = start; i < end; i++)
+            if (list[i].IsAvailable)
+                yield return list[i];
+    }
+    static IEnumerable<T> Concat2<T>(IEnumerable<T> first, IEnumerable<T> second)
+    {
+        foreach (var item in first) yield return item;
+        foreach (var item in second) yield return item;
+    }
+    static Predicate[] ConcatArrays(Predicate[] a, Predicate[] b)
+    {
+        var result = new Predicate[a.Length + b.Length];
+        Array.Copy(a, result, a.Length);
+        Array.Copy(b, 0, result, a.Length, b.Length);
+        return result;
+    }
+    static Predicate[] ConcatArrays(Predicate[] a, Predicate[] b, Predicate[] c)
+    {
+        var result = new Predicate[a.Length + b.Length + c.Length];
+        Array.Copy(a, result, a.Length);
+        Array.Copy(b, 0, result, a.Length, b.Length);
+        Array.Copy(c, 0, result, a.Length + b.Length, c.Length);
+        return result;
+    }
+    static Predicate[] ConcatArrays(Predicate[] a, Predicate[] b, Predicate[] c, Predicate[] d)
+    {
+        var result = new Predicate[a.Length + b.Length + c.Length + d.Length];
+        Array.Copy(a, result, a.Length);
+        Array.Copy(b, 0, result, a.Length, b.Length);
+        Array.Copy(c, 0, result, a.Length + b.Length, c.Length);
+        Array.Copy(d, 0, result, a.Length + b.Length + c.Length, d.Length);
+        return result;
+    }
+    [DI] public ZSingletonDI DI { get; set; }
     public List<RuleInfo> RuleInfos { get; set; } = [];
     ZDict<string, RuleInfo> CachedRuleInfos { get; set; } = [];
-    public void LoadRules(IEnumerable<MethodInfo> methodInfos)
+    /// <summary>
+    /// </summary>
+    public List<List<int>> CaptureRuleState()
+    {
+        return RuleInfos.Select(r => new List<int>(r.LeftIndexs)).ToList();
+    }
+    /// <summary>
+    /// </summary>
+    public void RestoreRuleState(List<List<int>> state)
+    {
+        Pairs.Clear();
+        for (int i = 0; i < RuleInfos.Count && i < state.Count; i++)
+        {
+            for (int j = 0; j < RuleInfos[i].LeftIndexs.Count && j < state[i].Count; j++)
+            {
+                RuleInfos[i].LeftIndexs[j] = state[i][j];
+            }
+        }
+    }
+    public virtual void LoadRules(IEnumerable<MethodInfo> methodInfos)
     {
         foreach (var ruleInfo in RuleInfos)
         {
@@ -84,7 +141,7 @@ public class RuleSolver
 
         void makePair1()
         {
-            var newKnowledges1 = KnowledgeList[0][OldPositions[0]..NewPositions[0]].Where(k => k.IsAvailable);
+            var newKnowledges1 = AvailableRange(KnowledgeList[0], OldPositions[0], NewPositions[0]);
             foreach (var k1 in newKnowledges1)
             {
                 Pairs.Enqueue(new(ruleInfo, [k1]));
@@ -93,11 +150,11 @@ public class RuleSolver
         }
         void makePair2()
         {
-            var oldKnowledges1 = KnowledgeList[0][0..OldPositions[0]].Where(k => k.IsAvailable);
-            var newKnowledges1 = KnowledgeList[0][OldPositions[0]..NewPositions[0]].Where(k => k.IsAvailable);
+            var oldKnowledges1 = AvailableRange(KnowledgeList[0], 0, OldPositions[0]);
+            var newKnowledges1 = AvailableRange(KnowledgeList[0], OldPositions[0], NewPositions[0]);
 
-            var oldKnowledges2 = KnowledgeList[1][0..OldPositions[1]].Where(k => k.IsAvailable);
-            var newKnowledges2 = KnowledgeList[1][OldPositions[1]..NewPositions[1]].Where(k => k.IsAvailable);
+            var oldKnowledges2 = AvailableRange(KnowledgeList[1], 0, OldPositions[1]);
+            var newKnowledges2 = AvailableRange(KnowledgeList[1], OldPositions[1], NewPositions[1]);
 
             foreach (var k1 in newKnowledges1)
             {
@@ -106,7 +163,7 @@ public class RuleSolver
                     Pairs.Enqueue(new(ruleInfo, [k1, k2]));
                 }
             }
-            foreach (var k1 in oldKnowledges1.Union(newKnowledges1))
+            foreach (var k1 in Concat2(oldKnowledges1, newKnowledges1))
             {
                 foreach (var k2 in newKnowledges2)
                 {
@@ -118,14 +175,14 @@ public class RuleSolver
         }
         void makePair3()
         {
-            var oldKnowledges1 = KnowledgeList[0][0..OldPositions[0]].Where(k => k.IsAvailable);
-            var newKnowledges1 = KnowledgeList[0][OldPositions[0]..NewPositions[0]].Where(k => k.IsAvailable);
+            var oldKnowledges1 = AvailableRange(KnowledgeList[0], 0, OldPositions[0]);
+            var newKnowledges1 = AvailableRange(KnowledgeList[0], OldPositions[0], NewPositions[0]);
 
-            var oldKnowledges2 = KnowledgeList[1][0..OldPositions[1]].Where(k => k.IsAvailable);
-            var newKnowledges2 = KnowledgeList[1][OldPositions[1]..NewPositions[1]].Where(k => k.IsAvailable);
+            var oldKnowledges2 = AvailableRange(KnowledgeList[1], 0, OldPositions[1]);
+            var newKnowledges2 = AvailableRange(KnowledgeList[1], OldPositions[1], NewPositions[1]);
 
-            var oldKnowledges3 = KnowledgeList[2][0..OldPositions[2]].Where(k => k.IsAvailable);
-            var newKnowledges3 = KnowledgeList[2][OldPositions[2]..NewPositions[2]].Where(k => k.IsAvailable);
+            var oldKnowledges3 = AvailableRange(KnowledgeList[2], 0, OldPositions[2]);
+            var newKnowledges3 = AvailableRange(KnowledgeList[2], OldPositions[2], NewPositions[2]);
 
             foreach (var k1 in newKnowledges1)
             {
@@ -137,7 +194,7 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in oldKnowledges1.Union(newKnowledges1))
+            foreach (var k1 in Concat2(oldKnowledges1, newKnowledges1))
             {
                 foreach (var k2 in newKnowledges2)
                 {
@@ -147,9 +204,9 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in oldKnowledges1.Union(newKnowledges1))
+            foreach (var k1 in Concat2(oldKnowledges1, newKnowledges1))
             {
-                foreach (var k2 in oldKnowledges2.Union(newKnowledges2))
+                foreach (var k2 in Concat2(oldKnowledges2, newKnowledges2))
                 {
                     foreach (var k3 in newKnowledges3)
                     {
@@ -164,17 +221,17 @@ public class RuleSolver
         }
         void makePair4()
         {
-            var oldKnowledges1 = KnowledgeList[0][0..OldPositions[0]].Where(k => k.IsAvailable);
-            var newKnowledges1 = KnowledgeList[0][OldPositions[0]..NewPositions[0]].Where(k => k.IsAvailable);
+            var oldKnowledges1 = AvailableRange(KnowledgeList[0], 0, OldPositions[0]);
+            var newKnowledges1 = AvailableRange(KnowledgeList[0], OldPositions[0], NewPositions[0]);
 
-            var oldKnowledges2 = KnowledgeList[1][0..OldPositions[1]].Where(k => k.IsAvailable);
-            var newKnowledges2 = KnowledgeList[1][OldPositions[1]..NewPositions[1]].Where(k => k.IsAvailable);
+            var oldKnowledges2 = AvailableRange(KnowledgeList[1], 0, OldPositions[1]);
+            var newKnowledges2 = AvailableRange(KnowledgeList[1], OldPositions[1], NewPositions[1]);
 
-            var oldKnowledges3 = KnowledgeList[2][0..OldPositions[2]].Where(k => k.IsAvailable);
-            var newKnowledges3 = KnowledgeList[2][OldPositions[2]..NewPositions[2]].Where(k => k.IsAvailable);
+            var oldKnowledges3 = AvailableRange(KnowledgeList[2], 0, OldPositions[2]);
+            var newKnowledges3 = AvailableRange(KnowledgeList[2], OldPositions[2], NewPositions[2]);
 
-            var oldKnowledges4 = KnowledgeList[3][0..OldPositions[3]].Where(k => k.IsAvailable);
-            var newKnowledges4 = KnowledgeList[3][OldPositions[3]..NewPositions[3]].Where(k => k.IsAvailable);
+            var oldKnowledges4 = AvailableRange(KnowledgeList[3], 0, OldPositions[3]);
+            var newKnowledges4 = AvailableRange(KnowledgeList[3], OldPositions[3], NewPositions[3]);
 
             foreach (var k1 in newKnowledges1)
             {
@@ -190,7 +247,7 @@ public class RuleSolver
                 }
             }
 
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
                 foreach (var k2 in newKnowledges2)
                 {
@@ -204,9 +261,9 @@ public class RuleSolver
                 }
             }
 
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
                     foreach (var k3 in newKnowledges3)
                     {
@@ -217,11 +274,11 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
-                    foreach (var k3 in newKnowledges3.Union(oldKnowledges3))
+                    foreach (var k3 in Concat2(newKnowledges3, oldKnowledges3))
                     {
                         foreach (var k4 in newKnowledges4)
                         {
@@ -238,20 +295,20 @@ public class RuleSolver
         }
         void makePair5()
         {
-            var oldKnowledges1 = KnowledgeList[0][0..OldPositions[0]].Where(k => k.IsAvailable);
-            var newKnowledges1 = KnowledgeList[0][OldPositions[0]..NewPositions[0]].Where(k => k.IsAvailable);
+            var oldKnowledges1 = AvailableRange(KnowledgeList[0], 0, OldPositions[0]);
+            var newKnowledges1 = AvailableRange(KnowledgeList[0], OldPositions[0], NewPositions[0]);
 
-            var oldKnowledges2 = KnowledgeList[1][0..OldPositions[1]].Where(k => k.IsAvailable);
-            var newKnowledges2 = KnowledgeList[1][OldPositions[1]..NewPositions[1]].Where(k => k.IsAvailable);
+            var oldKnowledges2 = AvailableRange(KnowledgeList[1], 0, OldPositions[1]);
+            var newKnowledges2 = AvailableRange(KnowledgeList[1], OldPositions[1], NewPositions[1]);
 
-            var oldKnowledges3 = KnowledgeList[2][0..OldPositions[2]].Where(k => k.IsAvailable);
-            var newKnowledges3 = KnowledgeList[2][OldPositions[2]..NewPositions[2]].Where(k => k.IsAvailable);
+            var oldKnowledges3 = AvailableRange(KnowledgeList[2], 0, OldPositions[2]);
+            var newKnowledges3 = AvailableRange(KnowledgeList[2], OldPositions[2], NewPositions[2]);
 
-            var oldKnowledges4 = KnowledgeList[3][0..OldPositions[3]].Where(k => k.IsAvailable);
-            var newKnowledges4 = KnowledgeList[3][OldPositions[3]..NewPositions[3]].Where(k => k.IsAvailable);
+            var oldKnowledges4 = AvailableRange(KnowledgeList[3], 0, OldPositions[3]);
+            var newKnowledges4 = AvailableRange(KnowledgeList[3], OldPositions[3], NewPositions[3]);
 
-            var oldKnowledges5 = KnowledgeList[4][0..OldPositions[4]].Where(k => k.IsAvailable);
-            var newKnowledges5 = KnowledgeList[4][OldPositions[4]..NewPositions[4]].Where(k => k.IsAvailable);
+            var oldKnowledges5 = AvailableRange(KnowledgeList[4], 0, OldPositions[4]);
+            var newKnowledges5 = AvailableRange(KnowledgeList[4], OldPositions[4], NewPositions[4]);
             foreach (var k1 in newKnowledges1)
             {
                 foreach (var k2 in oldKnowledges2)
@@ -269,7 +326,7 @@ public class RuleSolver
                 }
             }
 
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
                 foreach (var k2 in newKnowledges2)
                 {
@@ -286,9 +343,9 @@ public class RuleSolver
                 }
             }
 
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
                     foreach (var k3 in newKnowledges3)
                     {
@@ -302,11 +359,11 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
-                    foreach (var k3 in newKnowledges3.Union(oldKnowledges3))
+                    foreach (var k3 in Concat2(newKnowledges3, oldKnowledges3))
                     {
                         foreach (var k4 in newKnowledges4)
                         {
@@ -318,13 +375,13 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
-                    foreach (var k3 in newKnowledges3.Union(oldKnowledges3))
+                    foreach (var k3 in Concat2(newKnowledges3, oldKnowledges3))
                     {
-                        foreach (var k4 in newKnowledges4.Union(oldKnowledges4))
+                        foreach (var k4 in Concat2(newKnowledges4, oldKnowledges4))
                         {
                             foreach (var k5 in newKnowledges5)
                             {
@@ -342,22 +399,22 @@ public class RuleSolver
         }
         void makePair6()
         {
-            var oldKnowledges1 = KnowledgeList[0][0..OldPositions[0]].Where(k => k.IsAvailable);
-            var newKnowledges1 = KnowledgeList[0][OldPositions[0]..NewPositions[0]].Where(k => k.IsAvailable);
+            var oldKnowledges1 = AvailableRange(KnowledgeList[0], 0, OldPositions[0]);
+            var newKnowledges1 = AvailableRange(KnowledgeList[0], OldPositions[0], NewPositions[0]);
 
-            var oldKnowledges2 = KnowledgeList[1][0..OldPositions[1]].Where(k => k.IsAvailable);
-            var newKnowledges2 = KnowledgeList[1][OldPositions[1]..NewPositions[1]].Where(k => k.IsAvailable);
+            var oldKnowledges2 = AvailableRange(KnowledgeList[1], 0, OldPositions[1]);
+            var newKnowledges2 = AvailableRange(KnowledgeList[1], OldPositions[1], NewPositions[1]);
 
-            var oldKnowledges3 = KnowledgeList[2][0..OldPositions[2]].Where(k => k.IsAvailable);
-            var newKnowledges3 = KnowledgeList[2][OldPositions[2]..NewPositions[2]].Where(k => k.IsAvailable);
+            var oldKnowledges3 = AvailableRange(KnowledgeList[2], 0, OldPositions[2]);
+            var newKnowledges3 = AvailableRange(KnowledgeList[2], OldPositions[2], NewPositions[2]);
 
-            var oldKnowledges4 = KnowledgeList[3][0..OldPositions[3]].Where(k => k.IsAvailable);
-            var newKnowledges4 = KnowledgeList[3][OldPositions[3]..NewPositions[3]].Where(k => k.IsAvailable);
+            var oldKnowledges4 = AvailableRange(KnowledgeList[3], 0, OldPositions[3]);
+            var newKnowledges4 = AvailableRange(KnowledgeList[3], OldPositions[3], NewPositions[3]);
 
-            var oldKnowledges5 = KnowledgeList[4][0..OldPositions[4]].Where(k => k.IsAvailable);
-            var newKnowledges5 = KnowledgeList[4][OldPositions[4]..NewPositions[4]].Where(k => k.IsAvailable);
-            var oldKnowledges6 = KnowledgeList[5][0..OldPositions[5]].Where(k => k.IsAvailable);
-            var newKnowledges6 = KnowledgeList[5][OldPositions[5]..NewPositions[5]].Where(k => k.IsAvailable);
+            var oldKnowledges5 = AvailableRange(KnowledgeList[4], 0, OldPositions[4]);
+            var newKnowledges5 = AvailableRange(KnowledgeList[4], OldPositions[4], NewPositions[4]);
+            var oldKnowledges6 = AvailableRange(KnowledgeList[5], 0, OldPositions[5]);
+            var newKnowledges6 = AvailableRange(KnowledgeList[5], OldPositions[5], NewPositions[5]);
             foreach (var k1 in newKnowledges1)
             {
                 foreach (var k2 in oldKnowledges2)
@@ -377,7 +434,7 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
                 foreach (var k2 in newKnowledges2)
                 {
@@ -396,9 +453,9 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
                     foreach (var k3 in newKnowledges3)
                     {
@@ -415,11 +472,11 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
-                    foreach (var k3 in newKnowledges3.Union(oldKnowledges3))
+                    foreach (var k3 in Concat2(newKnowledges3, oldKnowledges3))
                     {
                         foreach (var k4 in newKnowledges4)
                         {
@@ -434,15 +491,15 @@ public class RuleSolver
                     }
                 }
             }
-            foreach (var k1 in newKnowledges1.Union(oldKnowledges1))
+            foreach (var k1 in Concat2(newKnowledges1, oldKnowledges1))
             {
-                foreach (var k2 in newKnowledges2.Union(oldKnowledges2))
+                foreach (var k2 in Concat2(newKnowledges2, oldKnowledges2))
                 {
-                    foreach (var k3 in newKnowledges3.Union(oldKnowledges3))
+                    foreach (var k3 in Concat2(newKnowledges3, oldKnowledges3))
                     {
-                        foreach (var k4 in newKnowledges4.Union(oldKnowledges4))
+                        foreach (var k4 in Concat2(newKnowledges4, oldKnowledges4))
                         {
-                            foreach (var k5 in newKnowledges5.Union(oldKnowledges5))
+                            foreach (var k5 in Concat2(newKnowledges5, oldKnowledges5))
                             {
                                 foreach (var k6 in newKnowledges6)
                                 {
@@ -493,14 +550,23 @@ public class RuleSolver
         }
         ComposeChunks(Chunks.Select(kv => (kv.Key, kv.Value)).ToList());
 
+        for (int i = 0; i < ruleInfo.LeftIndexs.Count; i++)
+        {
+            ruleInfo.LeftIndexs[i] = NewPositions[i];
+        }
+
         (List<Predicate[]> oldPairs, List<Predicate[]> newPairs) makeSameTypePairs(List<Predicate> ks, int oldPos, int newPos, int count)
         {
             List<Predicate[]> oldPairs = [];
             List<Predicate[]> newPairs = [];
             if (count == 1)
             {
-                oldPairs = ks[0..oldPos].Where(k => k.IsAvailable).Select(p => new Predicate[] { p }).ToList();
-                newPairs = ks[oldPos..newPos].Where(k => k.IsAvailable).Select(p => new Predicate[] { p }).ToList();
+                for (int i = 0; i < oldPos; i++)
+                    if (ks[i].IsAvailable)
+                        oldPairs.Add([ks[i]]);
+                for (int i = oldPos; i < newPos; i++)
+                    if (ks[i].IsAvailable)
+                        newPairs.Add([ks[i]]);
             }
             else if (count == 2)
             {
@@ -583,14 +649,14 @@ public class RuleSolver
                 {
                     foreach (var k2 in oldChunk2)
                     {
-                        Pairs.Enqueue(new(ruleInfo, k1.Union(k2).ToArray()));
+                        Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2)));
                     }
                 }
-                foreach (var k1 in newChunk1.Union(oldChunk1))
+                foreach (var k1 in Concat2(newChunk1, oldChunk1))
                 {
                     foreach (var k2 in newChunk2)
                     {
-                        Pairs.Enqueue(new(ruleInfo, k1.Union(k2).ToArray()));
+                        Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2)));
                     }
                 }
             }
@@ -608,27 +674,27 @@ public class RuleSolver
                     {
                         foreach (var k3 in oldChunk3)
                         {
-                            Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).ToArray()));
+                            Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3)));
                         }
                     }
                 }
-                foreach (var k1 in newChunk1.Union(oldChunk1))
+                foreach (var k1 in Concat2(newChunk1, oldChunk1))
                 {
                     foreach (var k2 in newChunk2)
                     {
                         foreach (var k3 in oldChunk3)
                         {
-                            Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).ToArray()));
+                            Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3)));
                         }
                     }
                 }
-                foreach (var k1 in newChunk1.Union(oldChunk1))
+                foreach (var k1 in Concat2(newChunk1, oldChunk1))
                 {
-                    foreach (var k2 in newChunk2.Union(oldChunk2))
+                    foreach (var k2 in Concat2(newChunk2, oldChunk2))
                     {
                         foreach (var k3 in newChunk3)
                         {
-                            Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).ToArray()));
+                            Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3)));
                         }
                     }
                 }
@@ -651,12 +717,12 @@ public class RuleSolver
                         {
                             foreach (var k4 in oldChunk4)
                             {
-                                Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).Union(k4).ToArray()));
+                                Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3, k4)));
                             }
                         }
                     }
                 }
-                foreach (var k1 in newChunk1.Union(oldChunk1))
+                foreach (var k1 in Concat2(newChunk1, oldChunk1))
                 {
                     foreach (var k2 in newChunk2)
                     {
@@ -664,33 +730,33 @@ public class RuleSolver
                         {
                             foreach (var k4 in oldChunk4)
                             {
-                                Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).Union(k4).ToArray()));
+                                Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3, k4)));
                             }
                         }
                     }
                 }
-                foreach (var k1 in newChunk1.Union(oldChunk1))
+                foreach (var k1 in Concat2(newChunk1, oldChunk1))
                 {
-                    foreach (var k2 in newChunk2.Union(oldChunk2))
+                    foreach (var k2 in Concat2(newChunk2, oldChunk2))
                     {
                         foreach (var k3 in newChunk3)
                         {
                             foreach (var k4 in oldChunk4)
                             {
-                                Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).Union(k4).ToArray()));
+                                Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3, k4)));
                             }
                         }
                     }
                 }
-                foreach (var k1 in newChunk1.Union(oldChunk1))
+                foreach (var k1 in Concat2(newChunk1, oldChunk1))
                 {
-                    foreach (var k2 in newChunk2.Union(oldChunk2))
+                    foreach (var k2 in Concat2(newChunk2, oldChunk2))
                     {
-                        foreach (var k3 in newChunk3.Union(oldChunk3))
+                        foreach (var k3 in Concat2(newChunk3, oldChunk3))
                         {
                             foreach (var k4 in newChunk4)
                             {
-                                Pairs.Enqueue(new(ruleInfo, k1.Union(k2).Union(k3).Union(k4).ToArray()));
+                                Pairs.Enqueue(new(ruleInfo, ConcatArrays(k1, k2, k3, k4)));
                             }
                         }
                     }

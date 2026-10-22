@@ -1,4 +1,4 @@
-﻿using System.Text;
+﻿﻿﻿using System.Text;
 
 using ZTool.Structures;
 
@@ -26,16 +26,16 @@ public class ConditionalKnowledgeCateInfo
 
 public class ConditionalKnowledgeInfo
 {
-    public string CondictionalKnowledge { get; set; }
-    public List<ConditionGroupInfo> CondictionGroupInfos { get; set; } = [];
-    public override string ToString() => CondictionalKnowledge + StringTool.ComposeList(CondictionGroupInfos);
+    public string ConditionalKnowledge { get; set; }
+    public List<ConditionGroupInfo> ConditionGroupInfos { get; set; } = [];
+    public override string ToString() => ConditionalKnowledge + StringTool.ComposeList(ConditionGroupInfos);
 }
 
 public class ConditionGroupInfo
 {
     public string Reason { get; set; }
-    public List<string> Condictions { get; set; } = [];
-    public override string ToString() => StringTool.ComposeList(Condictions) + "\t" + Reason;
+    public List<string> Conditions { get; set; } = [];
+    public override string ToString() => StringTool.ComposeList(Conditions) + "\t" + Reason;
 }
 
 public class KnowledgeCateInfo
@@ -58,6 +58,12 @@ public class KnowledgeInfo
     public bool IsAvailable { get; set; } = true;
     public override string ToString() => Content;
     public List<ConditionInfo> Conditions { get; set; } = new List<ConditionInfo>();
+}
+public class PointKnowledgeInfo: KnowledgeInfo
+{
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Z { get; set; }
 }
 
 [Alias("知识图谱")]
@@ -124,13 +130,13 @@ public class KnowledgeGraph
     }
 
     
-    string GetConditionText(ConditionInfo condiction)
+    string GetConditionText(ConditionInfo condition)
     {
         List<KnowledgeInfo> cate;
-        try { cate = FindKnowledgeInfoList(condiction.Type); }
+        try { cate = FindKnowledgeInfoList(condition.Type); }
         catch (NotImplementedException) { return ""; }
-        if (condiction.Index < 0 || condiction.Index >= cate.Count) return "";
-        return cate[condiction.Index].ToString();
+        if (condition.Index < 0 || condition.Index >= cate.Count) return "";
+        return cate[condition.Index].ToString();
     }
 
     public override string ToString()
@@ -147,9 +153,9 @@ public class KnowledgeGraph
                 if (!knowledge.IsAvailable)
                     stringBuilder.Append("~");
                 stringBuilder.Append(knowledge.Content + "\n");
-                foreach (var condiction in knowledge.Conditions)
+                foreach (var condition in knowledge.Conditions)
                 {
-                    stringBuilder.Append("\t" + GetConditionText(condiction) + "\n");
+                    stringBuilder.Append("\t" + GetConditionText(condition) + "\n");
                 }
             }
         }
@@ -164,9 +170,9 @@ public class KnowledgeGraph
                 if (!knowledge.IsAvailable)
                     stringBuilder.Append("~");
                 stringBuilder.Append(knowledge.Content + "\n");
-                foreach (var condiction in knowledge.Conditions)
+                foreach (var condition in knowledge.Conditions)
                 {
-                    stringBuilder.Append("\t" + GetConditionText(condiction) + "\n");
+                    stringBuilder.Append("\t" + GetConditionText(condition) + "\n");
                 }
             }
         }
@@ -181,9 +187,9 @@ public class KnowledgeGraph
                 if (!knowledge.IsAvailable)
                     stringBuilder.Append("~");
                 stringBuilder.Append(knowledge.Content + "\n");
-                foreach (var condiction in knowledge.Conditions)
+                foreach (var condition in knowledge.Conditions)
                 {
-                    stringBuilder.Append("\t" + GetConditionText(condiction) + "\n");
+                    stringBuilder.Append("\t" + GetConditionText(condition) + "\n");
                 }
             }
         }
@@ -198,9 +204,9 @@ public class KnowledgeGraph
                 if (!knowledge.IsAvailable)
                     stringBuilder.Append("~");
                 stringBuilder.Append(knowledge.Content + "\n");
-                foreach (var condiction in knowledge.Conditions)
+                foreach (var condition in knowledge.Conditions)
                 {
-                    stringBuilder.Append("\t" + GetConditionText(condiction) + "\n");
+                    stringBuilder.Append("\t" + GetConditionText(condition) + "\n");
                 }
             }
         }
@@ -208,7 +214,7 @@ public class KnowledgeGraph
         {
             foreach (ConditionalKnowledgeInfo ck in item.ConditionalKnowledgeInfos)
             {
-                stringBuilder.Append($"{ck.CondictionalKnowledge} \t\n{StringTool.ComposeList(ck.CondictionGroupInfos, "\t\n")}");
+                stringBuilder.Append($"{ck.ConditionalKnowledge} \t\n{StringTool.ComposeList(ck.ConditionGroupInfos, "\t\n")}");
                 stringBuilder.Append("\n\n");
             }
         }

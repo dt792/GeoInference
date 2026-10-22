@@ -1,4 +1,4 @@
-﻿
+﻿﻿
 using System.Text;
 
 public class QuestionHumanLikeAnswer
@@ -10,7 +10,7 @@ public class QuestionHumanLikeAnswer
     public string Answer { get; set; }
     public override string ToString()
     {
-        if (GeoInferenceApp.IsZhOrEn)
+        if (GeoInferenceApp.UseChinese)
         {
             if (IsSuccess) return $"第{Index}问：{Question}，已成功解决\n{InferenceSteps}";
             else return $"第{Index}问：{Question}，未解决";

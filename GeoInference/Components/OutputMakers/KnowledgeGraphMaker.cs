@@ -1,4 +1,4 @@
-﻿[Alias("知识图谱生成器")]
+﻿﻿﻿[Alias("知识图谱生成器")]
 public class KnowledgeGraphMaker : IOutputMaker
 {
     [DI] KnowledgeBase knowledgeBase { get; set; }
@@ -27,12 +27,26 @@ public class KnowledgeGraphMaker : IOutputMaker
         for (int i = 0; i < knowledges.Count; i++)
         {
             var knowledge = knowledges[i];
-            KnowledgeInfo knowledgeInfo = new KnowledgeInfo();
-            knowledgeInfo.Content = KnowledgeToString(knowledge);
-            knowledgeInfo.Reason = knowledge.Reason;
-            knowledgeInfo.IsAvailable = knowledge.IsAvailable;
-            MakeConditionInfo(knowledge, knowledgeInfo);
-            list.Add(knowledgeInfo);
+            if(knowledge is Point point)
+            {
+                PointKnowledgeInfo knowledgeInfo = new PointKnowledgeInfo();
+                knowledgeInfo.Content = KnowledgeToString(knowledge);
+                knowledgeInfo.Reason = knowledge.Reason;
+                knowledgeInfo.IsAvailable = knowledge.IsAvailable;
+                knowledgeInfo.X = point.X; knowledgeInfo.Y = point.Y; knowledgeInfo.Z = point.Z;
+                MakeConditionInfo(knowledge, knowledgeInfo);
+                list.Add(knowledgeInfo);
+            }
+            else
+            {
+                KnowledgeInfo knowledgeInfo = new KnowledgeInfo();
+                knowledgeInfo.Content = KnowledgeToString(knowledge);
+                knowledgeInfo.Reason = knowledge.Reason;
+                knowledgeInfo.IsAvailable = knowledge.IsAvailable;
+                MakeConditionInfo(knowledge, knowledgeInfo);
+                list.Add(knowledgeInfo);
+            }
+           
         }
         return (name, list);
     }
@@ -42,7 +56,7 @@ public class KnowledgeGraphMaker : IOutputMaker
         for (int j = 0; j < knowledge.Conditions.Count; j++)
         {
             var condition = knowledge.Conditions[j];
-            ConditionInfo condictionInfo = new ConditionInfo();
+            ConditionInfo conditionInfo = new ConditionInfo();
             string conditionTypeName;
             if (condition is Equation)
             {
@@ -52,9 +66,9 @@ public class KnowledgeGraphMaker : IOutputMaker
             {
                 conditionTypeName = GetTypeName(condition.GetType());
             }
-            condictionInfo.Type = conditionTypeName;
-            condictionInfo.Index = (int)condition.PosIndex;
-            knowledgeInfo.Conditions.Add(condictionInfo);
+            conditionInfo.Type = conditionTypeName;
+            conditionInfo.Index = (int)condition.PosIndex;
+            knowledgeInfo.Conditions.Add(conditionInfo);
         }
     }
     [DI] EquationSolver equationSolver;
@@ -63,12 +77,12 @@ public class KnowledgeGraphMaker : IOutputMaker
         output = new KnowledgeGraph();
         lock (knowledgeBase)
         {
-            //var a = equationSolver.TooComplexEqsyms.Union(equationSolver.ReadyToTryEqSyms).Union(equationSolver.TriedEqSyms).First(e => e.PosIndex == 0);
             #region Predicates (Categories)
             foreach (var cate in knowledgeBase.Categories)
             {
                 if (cate.Value.Count == 0) { continue; }
                 var type = cate.Key;
+                
                 if (type.IsAssignableTo(typeof(Figure)))
                 {
                     var result = MakeCateInfos(cate.Key, cate.Value);
@@ -181,18 +195,18 @@ public class KnowledgeGraphMaker : IOutputMaker
                 else
                 {
                     info = new ConditionalKnowledgeInfo();
-                    info.CondictionalKnowledge = KnowledgeToString(ck.Knowledge);
+                    info.ConditionalKnowledge = KnowledgeToString(ck.Knowledge);
                     dict.Add(ck.Knowledge.HashCode, info);
                     cate.ConditionalKnowledgeInfos.Add(info);
                 }
 
                 ConditionGroupInfo conditionGroupInfo = new();
                 conditionGroupInfo.Reason = ck.Knowledge.Reason;
-                foreach (var condiction in ck.Targets.Values)
+                foreach (var condition in ck.Targets.Values)
                 {
-                    conditionGroupInfo.Condictions.Add(KnowledgeToString(condiction));
+                    conditionGroupInfo.Conditions.Add(KnowledgeToString(condition));
                 }
-                info.CondictionGroupInfos.Add(conditionGroupInfo);
+                info.ConditionGroupInfos.Add(conditionGroupInfo);
             }
             #endregion
 

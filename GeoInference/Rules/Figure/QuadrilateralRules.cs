@@ -363,6 +363,11 @@ internal class QuadrilateralRules : RuleClass
         var bcS = GetSegment(quad[1], quad[2]);
         var daS = GetSegment(quad[3], quad[0]);
 
+        var abc = GetAngle(quad[0], quad[1], quad[2]);
+        var bcd = GetAngle(quad[1], quad[2], quad[3]);
+        var cda = GetAngle(quad[2], quad[3], quad[0]);
+        var dab = GetAngle(quad[3], quad[0], quad[1]);
+
         LineParallel lp = new LineParallel(abL, cdL);
         lp.AddReason();
         lp.AddCondition(quad);
@@ -371,6 +376,16 @@ internal class QuadrilateralRules : RuleClass
         qr.AddReason();
         qr.AddCondition(quad);
         updater.Add(qr);
+
+        qr = new QuantityRatio(abc.Size, dab.Size);
+        qr.AddReason();
+        qr.AddCondition(quad);
+        updater.Add(qr);
+        qr = new QuantityRatio(bcd.Size, cda.Size);
+        qr.AddReason();
+        qr.AddCondition(quad);
+        updater.Add(qr);
+
         var acS = GetSegment(quad[0], quad[2]);
         var bdS = GetSegment(quad[1], quad[3]);
         if (acS is not null && bdS is not null)
@@ -379,6 +394,8 @@ internal class QuadrilateralRules : RuleClass
             qr.AddReason();
             qr.AddCondition(quad);
             updater.Add(qr);
+
+           
         }
     }
 
@@ -388,11 +405,6 @@ internal class QuadrilateralRules : RuleClass
         var abL = GetLine(quad[0], quad[1]);
         var bcL = GetLine(quad[1], quad[2]);
         var cdL = GetLine(quad[2], quad[3]);
-
-        var abS = GetSegment(quad[0], quad[1]);
-        var bcS = GetSegment(quad[1], quad[2]);
-        var cdS = GetSegment(quad[2], quad[3]);
-        var daS = GetSegment(quad[3], quad[0]);
 
         LineParallel lp;
         LinePerpendicular lperp;
@@ -419,11 +431,11 @@ internal class QuadrilateralRules : RuleClass
         qr.AddReason();
         qr.AddCondition(quad);
         updater.Add(qr);
-        qr = new QuantityRatio(abcA.Size, bcdA.Size);
-        qr.AddReason();
-        qr.AddCondition(quad);
-        updater.Add(qr);
         qv = new QuantityValue(abcA.Size, 90);
+        qv.AddReason();
+        qv.AddCondition(quad);
+        updater.Add(qv);
+        qv = new QuantityValue(bcdA.Size, 90);
         qv.AddReason();
         qv.AddCondition(quad);
         updater.Add(qv);
@@ -456,103 +468,103 @@ internal class QuadrilateralRules : RuleClass
     }
 
     [Alias("梯形的判定")]
-    public void RuleDQ01TrapezoidDetermination(Quadriliateral quadriliateral, LineParallel parallel)
+    public void RuleDQ01TrapezoidDetermination(Quadrilateral quadrilateral, LineParallel parallel)
     {
-        Line ab = GetLine((Point)quadriliateral[0], (Point)quadriliateral[1]);
-        Line bc = GetLine((Point)quadriliateral[1], (Point)quadriliateral[2]);
-        Line cd = GetLine((Point)quadriliateral[2], (Point)quadriliateral[3]);
-        Line da = GetLine((Point)quadriliateral[0], (Point)quadriliateral[3]);
-        if (!IsTrapezoid((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]))
+        Line ab = GetLine((Point)quadrilateral[0], (Point)quadrilateral[1]);
+        Line bc = GetLine((Point)quadrilateral[1], (Point)quadrilateral[2]);
+        Line cd = GetLine((Point)quadrilateral[2], (Point)quadrilateral[3]);
+        Line da = GetLine((Point)quadrilateral[0], (Point)quadrilateral[3]);
+        if (!IsTrapezoid((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]))
             return;
         if (ab == parallel.Line1 && cd == parallel.Line2 || ab == parallel.Line2 && cd == parallel.Line1)
         {
-            Trapezoid pred = new Trapezoid((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]);
+            Trapezoid pred = new Trapezoid((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]);
             pred.AddReason();
-            pred.AddCondition(quadriliateral, parallel);
+            pred.AddCondition(quadrilateral, parallel);
             updater.Add(pred);
         }
         else if (bc == parallel.Line1 && da == parallel.Line2 || bc == parallel.Line2 && da == parallel.Line1)
         {
-            Trapezoid pred = new Trapezoid((Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3], (Point)quadriliateral[0]);
+            Trapezoid pred = new Trapezoid((Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3], (Point)quadrilateral[0]);
             pred.AddReason();
-            pred.AddCondition(quadriliateral, parallel);
+            pred.AddCondition(quadrilateral, parallel);
             updater.Add(pred);
         }
     }
 
     [SemiConditionRule]
     [Alias("平行四边形的判定（一组对边平行且相等）")]
-    public void RuleDQ02QuadrilateralWithOnePairOfParallelAndEqualOppositeSidesIsParallelogram(Quadriliateral quadriliateral)
+    public void RuleDQ02QuadrilateralWithOnePairOfParallelAndEqualOppositeSidesIsParallelogram(Quadrilateral quadrilateral)
     {
-        Line ab = GetLine((Point)quadriliateral[0], (Point)quadriliateral[1]);
-        Line bc = GetLine((Point)quadriliateral[1], (Point)quadriliateral[2]);
-        Line cd = GetLine((Point)quadriliateral[2], (Point)quadriliateral[3]);
-        Line da = GetLine((Point)quadriliateral[0], (Point)quadriliateral[3]);
-        Segment Sab = GetSegment((Point)quadriliateral[0], (Point)quadriliateral[1]);
-        Segment Sbc = GetSegment((Point)quadriliateral[1], (Point)quadriliateral[2]);
-        Segment Scd = GetSegment((Point)quadriliateral[2], (Point)quadriliateral[3]);
-        Segment Sda = GetSegment((Point)quadriliateral[0], (Point)quadriliateral[3]);
+        Line ab = GetLine((Point)quadrilateral[0], (Point)quadrilateral[1]);
+        Line bc = GetLine((Point)quadrilateral[1], (Point)quadrilateral[2]);
+        Line cd = GetLine((Point)quadrilateral[2], (Point)quadrilateral[3]);
+        Line da = GetLine((Point)quadrilateral[0], (Point)quadrilateral[3]);
+        Segment Sab = GetSegment((Point)quadrilateral[0], (Point)quadrilateral[1]);
+        Segment Sbc = GetSegment((Point)quadrilateral[1], (Point)quadrilateral[2]);
+        Segment Scd = GetSegment((Point)quadrilateral[2], (Point)quadrilateral[3]);
+        Segment Sda = GetSegment((Point)quadrilateral[0], (Point)quadrilateral[3]);
 
-        CondictionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]) };
-        c1.AddCondiction(new LineParallel(ab, cd), new SegmentLengthEqual(Sab, Scd));
+        ConditionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]) };
+        c1.AddCondition(new LineParallel(ab, cd), new SegmentLengthEqual(Sab, Scd));
         c1.Knowledge.AddReason();
-        c1.Knowledge.AddCondition(quadriliateral);
-        updater.AddCondictionalKnowledgePair(c1);
+        c1.Knowledge.AddCondition(quadrilateral);
+        updater.AddConditionalKnowledgePair(c1);
 
-        CondictionalKnowledge c11 = new() { Knowledge = new Parallelogram((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]) };
-        c11.AddCondiction(new LineParallel(bc, da), new SegmentLengthEqual(Sbc, Sda));
+        ConditionalKnowledge c11 = new() { Knowledge = new Parallelogram((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]) };
+        c11.AddCondition(new LineParallel(bc, da), new SegmentLengthEqual(Sbc, Sda));
         c11.Knowledge.AddReason();
-        c11.Knowledge.AddCondition(quadriliateral);
-        updater.AddCondictionalKnowledgePair(c11);
+        c11.Knowledge.AddCondition(quadrilateral);
+        updater.AddConditionalKnowledgePair(c11);
     }
 
     [SemiConditionRule]
     [Alias("平行四边形的判定（两组对边分别平行）")]
-    public void RuleDQ03QuadrilateralWithTwoPairsOfParallelOppositeSidesIsParallelogram(Quadriliateral quadriliateral)
+    public void RuleDQ03QuadrilateralWithTwoPairsOfParallelOppositeSidesIsParallelogram(Quadrilateral quadrilateral)
     {
-        Line ab = GetLine((Point)quadriliateral[0], (Point)quadriliateral[1]);
-        Line bc = GetLine((Point)quadriliateral[1], (Point)quadriliateral[2]);
-        Line cd = GetLine((Point)quadriliateral[2], (Point)quadriliateral[3]);
-        Line da = GetLine((Point)quadriliateral[0], (Point)quadriliateral[3]);
-        CondictionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]) };
-        c1.AddCondiction(new LineParallel(ab, cd), new LineParallel(bc, da));
+        Line ab = GetLine((Point)quadrilateral[0], (Point)quadrilateral[1]);
+        Line bc = GetLine((Point)quadrilateral[1], (Point)quadrilateral[2]);
+        Line cd = GetLine((Point)quadrilateral[2], (Point)quadrilateral[3]);
+        Line da = GetLine((Point)quadrilateral[0], (Point)quadrilateral[3]);
+        ConditionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]) };
+        c1.AddCondition(new LineParallel(ab, cd), new LineParallel(bc, da));
         c1.Knowledge.AddReason();
         c1.Knowledge.AddCondition();
-        updater.AddCondictionalKnowledgePair(c1);
+        updater.AddConditionalKnowledgePair(c1);
     }
 
     [SemiConditionRule]
     [Alias("平行四边形的判定（两组对边分别相等）")]
-    public void RuleDQ04QuadrilateralWithTwoPairsOfEqualOppositeSidesIsParallelogram(Quadriliateral quadriliateral)
+    public void RuleDQ04QuadrilateralWithTwoPairsOfEqualOppositeSidesIsParallelogram(Quadrilateral quadrilateral)
     {
-        Segment segment1 = GetSegment((Point)quadriliateral[0], (Point)quadriliateral[1]);
-        Segment segment2 = GetSegment((Point)quadriliateral[2], (Point)quadriliateral[3]);
-        Segment segment3 = GetSegment((Point)quadriliateral[0], (Point)quadriliateral[3]);
-        Segment segment4 = GetSegment((Point)quadriliateral[1], (Point)quadriliateral[2]);
-        CondictionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]) };
-        c1.AddCondiction(new SegmentLengthEqual(segment1, segment2), new SegmentLengthEqual(segment3, segment4));
+        Segment segment1 = GetSegment((Point)quadrilateral[0], (Point)quadrilateral[1]);
+        Segment segment2 = GetSegment((Point)quadrilateral[2], (Point)quadrilateral[3]);
+        Segment segment3 = GetSegment((Point)quadrilateral[0], (Point)quadrilateral[3]);
+        Segment segment4 = GetSegment((Point)quadrilateral[1], (Point)quadrilateral[2]);
+        ConditionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]) };
+        c1.AddCondition(new SegmentLengthEqual(segment1, segment2), new SegmentLengthEqual(segment3, segment4));
         c1.Knowledge.AddReason();
         c1.Knowledge.AddCondition();
-        updater.AddCondictionalKnowledgePair(c1);
+        updater.AddConditionalKnowledgePair(c1);
     }
 
     [SemiConditionRule]
     [Alias("平行四边形的判定（两组对角分别相等）")]
-    public void RuleDQ05QuadrilateralWithEqualOppositeAnglesIsParallelogram(Quadriliateral quadriliateral)
+    public void RuleDQ05QuadrilateralWithEqualOppositeAnglesIsParallelogram(Quadrilateral quadrilateral)
     {
-        Angle angle1 = GetAngle((Point)quadriliateral[1], (Point)quadriliateral[0], (Point)quadriliateral[3]);
-        Angle angle2 = GetAngle((Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]);
-        Angle angle3 = GetAngle((Point)quadriliateral[0], (Point)quadriliateral[3], (Point)quadriliateral[2]);
-        Angle angle4 = GetAngle((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2]);
-        CondictionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]) };
-        c1.AddCondiction(new AngleSizeEqual(angle1, angle2), new AngleSizeEqual(angle3, angle4));
+        Angle angle1 = GetAngle((Point)quadrilateral[1], (Point)quadrilateral[0], (Point)quadrilateral[3]);
+        Angle angle2 = GetAngle((Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]);
+        Angle angle3 = GetAngle((Point)quadrilateral[0], (Point)quadrilateral[3], (Point)quadrilateral[2]);
+        Angle angle4 = GetAngle((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2]);
+        ConditionalKnowledge c1 = new() { Knowledge = new Parallelogram((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]) };
+        c1.AddCondition(new AngleSizeEqual(angle1, angle2), new AngleSizeEqual(angle3, angle4));
         c1.Knowledge.AddReason();
         c1.Knowledge.AddCondition();
-        updater.AddCondictionalKnowledgePair(c1);
+        updater.AddConditionalKnowledgePair(c1);
     }
 
     [Alias("平行四边形的判定（对角线互相平分）")]
-    public void RuleDQ06QuadrilateralWithMutuallyBisectingDiagonalsIsParallelogram(Quadriliateral quadriliateral, Midpoint midpoint, Midpoint midpoint1)
+    public void RuleDQ06QuadrilateralWithMutuallyBisectingDiagonalsIsParallelogram(Quadrilateral quadrilateral, Midpoint midpoint, Midpoint midpoint1)
     {
         if (midpoint1 == midpoint) return;
         Point point = (Point)midpoint[0];
@@ -561,17 +573,17 @@ internal class QuadrilateralRules : RuleClass
         {
             return;
         }
-        Segment segment1 = GetSegment((Point)quadriliateral[0], (Point)quadriliateral[2]);
-        Segment segment2 = GetSegment((Point)quadriliateral[1], (Point)quadriliateral[3]);
+        Segment segment1 = GetSegment((Point)quadrilateral[0], (Point)quadrilateral[2]);
+        Segment segment2 = GetSegment((Point)quadrilateral[1], (Point)quadrilateral[3]);
 
         Segment segment3 = GetSegment(midpoint[1], midpoint[2]);
         Segment segment4 = GetSegment(midpoint1[1], midpoint1[2]);
         if (segment1 is null || segment2 is null) return;
         if ((segment3 == segment1 && segment4 == segment2) || (segment3 == segment2 && segment4 == segment1))
         {
-            Parallelogram pred = new Parallelogram((Point)quadriliateral[0], (Point)quadriliateral[1], (Point)quadriliateral[2], (Point)quadriliateral[3]);
+            Parallelogram pred = new Parallelogram((Point)quadrilateral[0], (Point)quadrilateral[1], (Point)quadrilateral[2], (Point)quadrilateral[3]);
             pred.AddReason();
-            pred.AddCondition(quadriliateral, midpoint, midpoint1);
+            pred.AddCondition(quadrilateral, midpoint, midpoint1);
             updater.Add(pred);
         }
     }
@@ -619,7 +631,7 @@ internal class QuadrilateralRules : RuleClass
     }
 
     [Alias("筝形的判定（两组邻边分别相等）")]
-    public void RuleDQ09QuadrilateralWithTwoPairsOfEqualAdjacentSidesIsKite(Quadriliateral quad, SegmentLengthEqual equal1, SegmentLengthEqual equal2)
+    public void RuleDQ09QuadrilateralWithTwoPairsOfEqualAdjacentSidesIsKite(Quadrilateral quad, SegmentLengthEqual equal1, SegmentLengthEqual equal2)
     {
         if (equal1 == equal2) return;
         Segment ab = GetSegment((Point)quad[0], (Point)quad[1]);
@@ -645,10 +657,10 @@ internal class QuadrilateralRules : RuleClass
         {
             for (int j = i + 1; j < verticalBisectorLine[1].Properties.Count; j++)
             {
-                var quad = GetQuadriliateral((Point)verticalBisectorLine[1][i], (Point)verticalBisectorLine[0][0], (Point)verticalBisectorLine[1][i], (Point)verticalBisectorLine[0][1]);
+                var quad = GetQuadrilateral((Point)verticalBisectorLine[1][i], (Point)verticalBisectorLine[0][0], (Point)verticalBisectorLine[1][j], (Point)verticalBisectorLine[0][1]);
                 if (quad is not null)
                 {
-                    Kite pred = new Kite((Point)verticalBisectorLine[1][i], (Point)verticalBisectorLine[0][0], (Point)verticalBisectorLine[1][i], (Point)verticalBisectorLine[0][1]);
+                    Kite pred = new Kite((Point)verticalBisectorLine[1][i], (Point)verticalBisectorLine[0][0], (Point)verticalBisectorLine[1][j], (Point)verticalBisectorLine[0][1]);
                     pred.AddReason();
                     pred.AddCondition(quad, verticalBisectorLine);
                     updater.Add(pred);
@@ -878,7 +890,7 @@ internal class QuadrilateralRules : RuleClass
     }
 
     [Alias("四边形内角和定理")]
-    public void RuleQuadGeoQuantity01QuadrilateralInteriorAngleSumFormula(Quadriliateral quad)
+    public void RuleQuadGeoQuantity01QuadrilateralInteriorAngleSumFormula(Quadrilateral quad)
     {
         var angle1 = GetAngle(quad[0], quad[1], quad[2]);
         var angle2 = GetAngle(quad[1], quad[2], quad[3]);
@@ -892,7 +904,7 @@ internal class QuadrilateralRules : RuleClass
     }
 
     [Alias("四边形面积公式")]
-    public void RuleQuadGeo01QuadrilateralAreaFormula(Quadriliateral square)
+    public void RuleQuadGeo01QuadrilateralAreaFormula(Quadrilateral square)
     {
         var a1 = GetTriangle((Point)square[0], (Point)square[2], (Point)square[1]);
         var a2 = GetTriangle((Point)square[0], (Point)square[2], (Point)square[3]);
@@ -915,7 +927,7 @@ internal class QuadrilateralRules : RuleClass
     }
 
     [Alias("四边形周长公式")]
-    public void RuleQuadGeo02QuadrilateralPerimeterFormula(Quadriliateral square)
+    public void RuleQuadGeo02QuadrilateralPerimeterFormula(Quadrilateral square)
     {
         var ab = GetSegment((Point)square[0], (Point)square[1]);
         var bc = GetSegment((Point)square[1], (Point)square[2]);
@@ -930,7 +942,7 @@ internal class QuadrilateralRules : RuleClass
     [Alias("菱形周长公式")]
     public void RuleQuadGeo03RhombusPerimeterFormula(Rhombus rh)
     {
-        var quad = GetQuadriliateral((Point)rh[0], (Point)rh[1], (Point)rh[2], (Point)rh[3]);
+        var quad = GetQuadrilateral((Point)rh[0], (Point)rh[1], (Point)rh[2], (Point)rh[3]);
         var ab = GetSegment((Point)rh[0], (Point)rh[1]);
         var bc = GetSegment((Point)rh[1], (Point)rh[2]);
         var cd = GetSegment((Point)rh[2], (Point)rh[3]);
@@ -957,7 +969,7 @@ internal class QuadrilateralRules : RuleClass
     [Alias("平行四边形面积公式")]
     public void RuleQuadGeo04ParallelogramAreaFormula(Parallelogram para, LinePerpendicular perpendicular)
     {
-        var quad = GetQuadriliateral((Point)para[0], (Point)para[1], (Point)para[2], (Point)para[3]);
+        var quad = GetQuadrilateral((Point)para[0], (Point)para[1], (Point)para[2], (Point)para[3]);
         var ab = GetLine((Point)para[0], (Point)para[1]);
         var bc = GetLine((Point)para[1], (Point)para[2]);
         var cd = GetLine((Point)para[2], (Point)para[3]);
@@ -1062,7 +1074,7 @@ internal class QuadrilateralRules : RuleClass
     [Alias("梯形面积公式")]
     public void RuleQuadGeo05TrapezoidAreaFormula(Trapezoid para, LinePerpendicular perpendicular)
     {
-        var quad = GetQuadriliateral((Point)para[0], (Point)para[1], (Point)para[2], (Point)para[3]);
+        var quad = GetQuadrilateral((Point)para[0], (Point)para[1], (Point)para[2], (Point)para[3]);
         var ab = GetLine((Point)para[0], (Point)para[1]);
         var cd = GetLine((Point)para[2], (Point)para[3]);
         var Sab = GetSegment((Point)para[0], (Point)para[1]);
@@ -1118,7 +1130,7 @@ internal class QuadrilateralRules : RuleClass
     public void RuleQuadGeo06SquareAreaFormula(Square square)
     {
         var edge = GetSegment(square[0], square[1]);
-        var quad = GetQuadriliateral((Point)square.Properties[0], (Point)square.Properties[1], (Point)square.Properties[2], (Point)square.Properties[3]);
+        var quad = GetQuadrilateral((Point)square.Properties[0], (Point)square.Properties[1], (Point)square.Properties[2], (Point)square.Properties[3]);
         Equation pred = new ProductionEquation(new() { { edge.Length, 2 }, { quad.Area, -1 } }, 1);
         pred.AddReason();
         pred.AddCondition(square);
@@ -1130,7 +1142,7 @@ internal class QuadrilateralRules : RuleClass
     {
         var edge1 = GetSegment(square[0], square[1]);
         var edge2 = GetSegment(square[1], square[2]);
-        var quad = GetQuadriliateral((Point)square.Properties[0], (Point)square.Properties[1], (Point)square.Properties[2], (Point)square.Properties[3]);
+        var quad = GetQuadrilateral((Point)square.Properties[0], (Point)square.Properties[1], (Point)square.Properties[2], (Point)square.Properties[3]);
         Equation pred = new ProductionEquation(new() { { edge1.Length, 1 }, { edge2.Length, 1 }, { quad.Area, -1 } }, 1);
         pred.AddReason();
         pred.AddCondition(square);
@@ -1143,7 +1155,7 @@ internal class QuadrilateralRules : RuleClass
         var edge1 = GetSegment(square[0], square[2]);
         var edge2 = GetSegment(square[1], square[3]);
         if (edge1 is null || edge2 is null) return;
-        var quad = GetQuadriliateral((Point)square.Properties[0], (Point)square.Properties[1], (Point)square.Properties[2], (Point)square.Properties[3]);
+        var quad = GetQuadrilateral((Point)square.Properties[0], (Point)square.Properties[1], (Point)square.Properties[2], (Point)square.Properties[3]);
         Equation pred = new ProductionEquation(new() { { edge1.Length, 1 }, { edge2.Length, 1 }, { quad.Area, -1 } }, 2);
         pred.AddReason();
         pred.AddCondition(square);

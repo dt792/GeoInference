@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 
 public class MapleBaseLinearMatrix
 {
-    public static Func<string, Quantity> ParseQuantity;
     public bool IsLog = false;
     #region MapleScript
     public const string MapleFile = @"CreateLinearSystem := proc()
@@ -108,7 +107,10 @@ public class MapleBaseLinearMatrix
             if ReducedMat = NULL or LinearAlgebra:-RowDimension(ReducedMat) = 0 then
                 return evalb(normal(add(vecArr[j]^2, j=1..nVars+1)) = 0);
             end if;
-            M_test := <ReducedMat | v>;
+            # v 是候选方程行（长度 nVars+1），判定它是否属于 ReducedMat 的行空间：
+            # 必须纵向拼接为新行 <ReducedMat, v>；横向拼接 <ReducedMat | v> 在 m<>1 时维度不匹配报错，
+            # m=1 时又恒判 true，两种情况下结果都是错的
+            M_test := <ReducedMat, v>;
             r_new := LinearAlgebra:-Rank(map(normal, M_test));
             return evalb(r_new = RankVal);
         end proc;
@@ -490,9 +492,15 @@ end proc:";
     #endregion
 
     #region 
+    private readonly List<MatrixProvenance.SourceEntry> _equationSources = [];
     public virtual void AddEquation(Dictionary<Quantity, Expr> coeffDict, Expr constant, Knowledge knowledge)
     {
         if (coeffDict == null || coeffDict.Count == 0) return;
+
+        _equationSources.Add(new MatrixProvenance.SourceEntry(
+            coeffDict.Keys.Select(q => q.ToString()).ToHashSet(),
+            constant is not null && constant.ToString() != "0",
+            knowledge is null ? [] : [knowledge]));
 
         var pairs = string.Join(", ", coeffDict.Select(kv => $"{kv.Key}={kv.Value}"));
         string cmd = $"{_matrixName}:-AddEquation(table([{pairs}]), {constant}):";
@@ -523,7 +531,6 @@ end proc:";
     public virtual void Eliminate()
     {
         RunCommand($"{_matrixName}:-Eliminate();");
-        //_log.Add(GetCompleteMatrixString()); 
     }
     public bool HasContradiction()
     {
@@ -548,7 +555,6 @@ end proc:";
         var res = RunCommand($"{_matrixName}:-GetVariableNames();").Trim();
         if (string.IsNullOrEmpty(res) || res == "\"\"") return new List<Quantity>();
 
-        
         var names = res.Trim('"').Split(',');
         return names.Select(n => Quantity.Parse(n.Trim())).ToList(); 
     }
@@ -562,14 +568,11 @@ end proc:";
     {
         var constStr = RunCommand($"{_matrixName}:-GetConstantsString();").Trim();
 
-        
         if (constStr == "\"[]\"") return Array.Empty<string>();
 
-        
         var clean = constStr.Trim('"', ' ', '[', ']');
         if (string.IsNullOrEmpty(clean)) return Array.Empty<string>();
 
-        
         return clean.Split(',').Select(s => s.Trim()).ToArray();
     }
     public string GetCompleteMatrixString()
@@ -641,8 +644,17 @@ end proc:";
     public virtual bool ReduceColumnsByContinuedEquality(
         Dictionary<Quantity, Expr> coeffDict,
         Expr actualValue = null,
-        Quantity baseVar = null)
+        Quantity baseVar = null,
+        IEnumerable<Knowledge> provenance = null)
     {
+        if (provenance is not null && coeffDict is not null && coeffDict.Count > 0)
+        {
+            _equationSources.Add(new MatrixProvenance.SourceEntry(
+                coeffDict.Keys.Select(q => q.ToString()).ToHashSet(),
+                actualValue is not null,
+                provenance.ToList()));
+        }
+
         var pairs = string.Join(", ", coeffDict.Select(kv => $"{kv.Key}={kv.Value}"));
         string avParam = actualValue is null ? "NULL" : actualValue.ToString();
         string bvParam = baseVar == null ? "NULL" : baseVar.ToString();
@@ -673,10 +685,11 @@ end proc:";
             {
                 Quantity var = Quantity.Parse(item[0]);
                 QuantityValue pred = new QuantityValue(var, item[1]);
-                if (GeoInferenceApp.IsZhOrEn)
+                if (GeoInferenceApp.UseChinese)
                     pred.Reason = "线性矩阵发现";
                 else
                     pred.Reason = "DiscoveredByLinearMatrix";
+                pred.AddCondition(MatrixProvenance.FindPathToAnchor(_equationSources, var.ToString()));
                 result.Add(pred);
             }
             else if (item.Count == 3)
@@ -684,10 +697,11 @@ end proc:";
                 Quantity pVar = Quantity.Parse(item[0]);
                 Quantity qVar = Quantity.Parse(item[1]);
                 QuantityRatio pred = new QuantityRatio(pVar, qVar, item[2]);
-                if (GeoInferenceApp.IsZhOrEn)
+                if (GeoInferenceApp.UseChinese)
                     pred.Reason = "线性矩阵发现";
                 else
                     pred.Reason = "DiscoveredByLinearMatrix";
+                pred.AddCondition(MatrixProvenance.FindPath(_equationSources, pVar.ToString(), qVar.ToString()));
                 result.Add(pred);
             }
         }
@@ -695,13 +709,14 @@ end proc:";
     }
     public string RunCommand(string command)
     {
-        _commands.Add(command);
+        if (command.Contains("AddEquation(table([AngleC_E_DA_Size=2, ArcOAC_Size=-1, ArcOCD_Size=1]), 0)"))
+            ;
+        if (IsLog) _commands.Add(command);
         var result = _mapleApp.Run(command);
         if (result != null && result.Contains("Error"))
             throw new MapleExecutionException($"Maple run command failed: {command}\n Detail: {result}");
         return result ?? "";
     }
-
 
     public static string[,] ParseMapleMatrix(string mapleStr)
     {
@@ -744,6 +759,83 @@ end proc:";
 public class MapleExecutionException : Exception
 {
     public MapleExecutionException(string message) : base(message) { }
+}
+
+/// <summary>
+/// </summary>
+internal static class MatrixProvenance
+{
+    public sealed class SourceEntry
+    {
+        public HashSet<string> Vars { get; }
+        public bool HasConstant { get; }
+        public List<Knowledge> Sources { get; }
+        public SourceEntry(HashSet<string> vars, bool hasConstant, List<Knowledge> sources)
+        {
+            Vars = vars;
+            HasConstant = hasConstant;
+            Sources = sources;
+        }
+    }
+
+    public static List<Knowledge> FindPath(List<SourceEntry> sources, string from, string to)
+        => from == to ? [] : Bfs(sources, from, entry => entry.Vars.Contains(to));
+
+    public static List<Knowledge> FindPathToAnchor(List<SourceEntry> sources, string from)
+        => Bfs(sources, from, entry => entry.HasConstant);
+
+    static List<Knowledge> Bfs(List<SourceEntry> sources, string from, Func<SourceEntry, bool> isTerminal)
+    {
+        var prevNode = new Dictionary<string, string>();
+        var prevEdge = new Dictionary<string, SourceEntry>();
+        var visited = new HashSet<string> { from };
+        var queue = new Queue<string>();
+        queue.Enqueue(from);
+        SourceEntry terminal = null;
+        string terminalAt = null;
+
+        while (queue.Count > 0 && terminal is null)
+        {
+            var cur = queue.Dequeue();
+            foreach (var e in sources)
+            {
+                if (!e.Vars.Contains(cur)) continue;
+                if (isTerminal(e))
+                {
+                    terminal = e;
+                    terminalAt = cur;
+                    break;
+                }
+                foreach (var v in e.Vars)
+                {
+                    if (!visited.Add(v)) continue;
+                    prevNode[v] = cur;
+                    prevEdge[v] = e;
+                    queue.Enqueue(v);
+                }
+            }
+        }
+
+        if (terminal is null)
+            return [];
+
+        var edges = new List<SourceEntry> { terminal };
+        var node = terminalAt;
+        while (prevEdge.TryGetValue(node, out var edge))
+        {
+            edges.Add(edge);
+            node = prevNode[node];
+        }
+        edges.Reverse();
+
+        var result = new List<Knowledge>();
+        var seen = new HashSet<Knowledge>();
+        foreach (var e in edges)
+            foreach (var k in e.Sources)
+                if (seen.Add(k))
+                    result.Add(k);
+        return result;
+    }
 }
 
 public static class NestedListParser

@@ -8,6 +8,7 @@ internal class CircleRules : RuleClass
         var f = sector[1];
         var e = sector.Properties.Last();
         var circle = GetCircle(c, f);
+        if (circle is null) return;
         var angle = GetAngle(f, c, e);
         if (angle is not null)
         {
@@ -91,8 +92,7 @@ internal class CircleRules : RuleClass
             pred3.AddReason();
             updater.Add(pred3);
 
-            var seg = GetSegment(e1, e2);
-            CircleDiameter pred4 = new CircleDiameter(circle, seg);
+            CircleDiameter pred4 = new CircleDiameter(circle, segment);
             pred4.AddCondition(circle);
             pred4.AddReason();
             updater.Add(pred4);
@@ -112,7 +112,7 @@ internal class CircleRules : RuleClass
         }
         foreach (var item in segs.Skip(1))
         {
-            QuantityRatio pred = new QuantityRatio(segs.First().Length, item.Length);
+            QuantityRatio pred = new QuantityRatio(segs[0].Length, item.Length);
             pred.AddReason();
             pred.AddCondition(circle);
             updater.Add(pred);
@@ -250,14 +250,24 @@ internal class CircleRules : RuleClass
     [Alias("圆外角定理")]
     public void RuleCc12ExteriorAngleTheoremOfCircle(Circle circle, Angle angle)
     {
-        var edge11 = angle.Edge1.Where(circle.Properties.Skip(1).Contains);
-        var edge22 = angle.Edge2.Where(circle.Properties.Skip(1).Contains);
-        if (angle.Edge1.Where(circle.Properties.Skip(1).Contains).Count() == 2 &&
-            angle.Edge2.Where(circle.Properties.Skip(1).Contains).Count() == 2)
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        if (onCircle.Contains(angle.Vertex)) return;
+        if (!IsOutsideCircle(circle, angle.Vertex)) return;
+        var edge11 = angle.Edge1.Where(onCircle.Contains).ToList();
+        var edge22 = angle.Edge2.Where(onCircle.Contains).ToList();
+        if (edge11.Count == 2 && edge22.Count == 2)
         {
-            Arc minArc = GetArc(circle.Center, (Point)edge11.First(), (Point)edge22.First());
-            Arc maxArc = GetArc(circle.Center, (Point)edge11.Last(), (Point)edge22.Last());
-            Equation know = new LinearEquation(new() { { angle.Size ,2},{ minArc.Size ,1},{ maxArc.Size,-1 } },0);
+            edge11 = SortByDistanceFrom(angle.Vertex, edge11);
+            edge22 = SortByDistanceFrom(angle.Vertex, edge22);
+            Arc nearArc = GetArc(circle.Center, edge11[0], edge22[0]);
+            Arc farArc = GetArc(circle.Center, edge11[^1], edge22[^1]);
+            if (nearArc is null || farArc is null) return;
+
+            // 截弧不含另一侧的交点：若远点在劣弧 N1N2 上则近截弧为优弧，若近点在劣弧 F1F2 上则远截弧为优弧
+            bool nearIsMinor = IsInterceptedArcMinor(circle.Center, edge11[0], edge22[0], edge11[^1], edge22[^1]);
+            bool farIsMinor = IsInterceptedArcMinor(circle.Center, edge11[^1], edge22[^1], edge11[0], edge22[0]);
+
+            Equation know = ExteriorAngleArcEquation(angle.Size, nearArc, nearIsMinor, farArc, farIsMinor);
             know.AddReason();
             know.AddCondition(circle, angle);
             updater.Add(know);
@@ -267,15 +277,15 @@ internal class CircleRules : RuleClass
     [Alias("圆幂定理")]
     public void RuleCc13PowerOfPointTheorem(Circle circle, Angle angle)
     {
-        var edge11 = angle.Edge1.Where(circle.Properties.Skip(1).Contains);
-        var edge22 = angle.Edge2.Where(circle.Properties.Skip(1).Contains);
-        if (angle.Edge1.Where(circle.Properties.Skip(1).Contains).Count() == 2 &&
-            angle.Edge2.Where(circle.Properties.Skip(1).Contains).Count() == 2)
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        var edge11 = angle.Edge1.Where(onCircle.Contains).ToList();
+        var edge22 = angle.Edge2.Where(onCircle.Contains).ToList();
+        if (edge11.Count == 2 && edge22.Count == 2)
         {
-            Segment s11 = GetSegment(angle.Vertex, edge11.First());
-            Segment s12 = GetSegment(angle.Vertex, edge11.Last());
-            Segment s21 = GetSegment(angle.Vertex, edge22.First());
-            Segment s22 = GetSegment(angle.Vertex, edge22.Last());
+            Segment s11 = GetSegment(angle.Vertex, edge11[0]);
+            Segment s12 = GetSegment(angle.Vertex, edge11[^1]);
+            Segment s21 = GetSegment(angle.Vertex, edge22[0]);
+            Segment s22 = GetSegment(angle.Vertex, edge22[^1]);
 
             ProductionEquation know = new ProductionEquation(new() { { s11.Length , 1 }, { s12.Length, 1 }, { s21.Length, -1 }, { s22.Length, -1 } },1);
             know.AddReason();
@@ -288,10 +298,11 @@ internal class CircleRules : RuleClass
     public void RuleCc14EqualCentralAnglesImplyEqualChords(Circle circle, AngleSizeEqual equal)
     {
         if (circle.Center != equal.Angle1.Vertex || circle.Center != equal.Angle2.Vertex) return;
-        var ac11 = FindCIntersection(circle.Properties, equal.Angle1.Edge1);
-        var ac12 = FindCIntersection(circle.Properties, equal.Angle1.Edge2);
-        var ac21 = FindCIntersection(circle.Properties, equal.Angle2.Edge1);
-        var ac22 = FindCIntersection(circle.Properties, equal.Angle2.Edge2);
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        var ac11 = FindCIntersection(onCircle, equal.Angle1.Edge1);
+        var ac12 = FindCIntersection(onCircle, equal.Angle1.Edge2);
+        var ac21 = FindCIntersection(onCircle, equal.Angle2.Edge1);
+        var ac22 = FindCIntersection(onCircle, equal.Angle2.Edge2);
         if (ac11 is null || ac12 is null || ac21 is null || ac22 is null) return;
         var seg1 = GetSegment(ac11, ac12);
         var seg2 = GetSegment(ac21, ac22);
@@ -316,6 +327,20 @@ internal class CircleRules : RuleClass
             pred.AddCondition(ct);
             updater.Add(pred);
         }
+    }
+
+    [Alias("圆心到弦中点的连线垂直于弦")]
+    public void RuleCc17CenterToChordMidpointPerpendicular(Circle circle, Midpoint midpoint)
+    {
+        var onCircle = circle.Properties.Skip(1);
+        if (!onCircle.Contains(midpoint[1]) || !onCircle.Contains(midpoint[2])) return;
+        var om = GetLine(circle.Center, midpoint[0]);
+        var chord = GetLine(midpoint[1], midpoint[2]);
+        if (om is null || chord is null) return;
+        LinePerpendicular pred = new LinePerpendicular(om, chord);
+        pred.AddReason();
+        pred.AddCondition(circle, midpoint);
+        updater.Add(pred);
     }
 
     [Alias("切线长定理")]

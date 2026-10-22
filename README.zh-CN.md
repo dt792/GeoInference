@@ -47,14 +47,14 @@
 
 ## 调整并行线程数量
 
-推理过程支持并行处理，可根据 CPU 情况调整同时运行的线程数量。默认最大并发数为 `16`。
+推理过程支持并行处理，可根据 CPU 情况调整同时运行的线程数量。默认最大并发数为 `5`。
 
 在 `GeoInference.Tests/Program.cs` 中通过 `MaxThreads` 属性设置：
 
 ```csharp
 IntegratedTester tester = new IntegratedTester();
 // 根据 CPU 情况调整同时运行的线程数量
-tester.MaxThreads = 10;
+tester.MaxThreads = 5;
 await tester.Test();
 ```
 

@@ -13,6 +13,7 @@ public class InferenceMetricsMaker : IOutputMaker
         output = new();
         CollectTimeMetrics();
         CollectKnowledgeMetrics();
+        output.ActualRuleInstantiationCount = ruleSolver.ActualRuleInstantiationCount;
         CollectRuleMetrics();
         CollectSemiMetrics();
         CollectEqualityChainMetrics();
@@ -358,14 +359,14 @@ public class InferenceMetricsMaker : IOutputMaker
              OriginalTypes: new List<Type> { typeof(AngularBisectorLine), typeof(LinePerpendicular), typeof(LinePerpendicular) },
              OptimizedTypes: new List<Type> { typeof(AngularBisectorLine) }),
              (Name: nameof(QuadrilateralRules.RuleDQ02QuadrilateralWithOnePairOfParallelAndEqualOppositeSidesIsParallelogram),
-             OriginalTypes: new List<Type> { typeof(Quadriliateral), typeof(LineParallel), typeof(SegmentLengthEqual) },
-             OptimizedTypes: new List<Type> { typeof(Quadriliateral) }),
+             OriginalTypes: new List<Type> { typeof(Quadrilateral), typeof(LineParallel), typeof(SegmentLengthEqual) },
+             OptimizedTypes: new List<Type> { typeof(Quadrilateral) }),
              (Name: nameof(QuadrilateralRules.RuleDQ03QuadrilateralWithTwoPairsOfParallelOppositeSidesIsParallelogram),
-             OriginalTypes: new List<Type> { typeof(Quadriliateral), typeof(SegmentLengthEqual), typeof(SegmentLengthEqual) },
-             OptimizedTypes: new List<Type> { typeof(Quadriliateral) }),
+             OriginalTypes: new List<Type> { typeof(Quadrilateral), typeof(LineParallel), typeof(LineParallel) },
+             OptimizedTypes: new List<Type> { typeof(Quadrilateral) }),
              (Name: nameof(QuadrilateralRules.RuleDQ04QuadrilateralWithTwoPairsOfEqualOppositeSidesIsParallelogram),
-             OriginalTypes: new List<Type> { typeof(Quadriliateral), typeof(AngleSizeEqual), typeof(AngleSizeEqual) },
-             OptimizedTypes: new List<Type> { typeof(Quadriliateral) })
+             OriginalTypes: new List<Type> { typeof(Quadrilateral), typeof(SegmentLengthEqual), typeof(SegmentLengthEqual) },
+             OptimizedTypes: new List<Type> { typeof(Quadrilateral) })
         };
 
         foreach (var config in triangleRuleConfigs)
@@ -405,7 +406,7 @@ public class InferenceMetricsMaker : IOutputMaker
 
     private string GetFriendlyTypeName(Type type)
     {
-        if (GeoInferenceApp.IsZhOrEn)
+        if (GeoInferenceApp.UseChinese)
         {
             var aliases = type.GetAlias();
             string typeName = aliases.Any() ? aliases[0] : type.Name;

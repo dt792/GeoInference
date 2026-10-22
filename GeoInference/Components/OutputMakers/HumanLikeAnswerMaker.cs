@@ -19,12 +19,12 @@ internal class HumanLikeAnswerMaker : IOutputMaker
             }
             else
             {
-                List<int> condictionIndexs = new List<int>();
+                List<int> conditionIndexs = new List<int>();
                 foreach (var item in condition.Conditions.Distinct().OrderByDescending(c => c.ToString().Length))
                 {
-                    condictionIndexs.Add(conditions.IndexOf(item) + 1);
+                    conditionIndexs.Add(conditions.IndexOf(item) + 1);
                 }
-                answer += $"[{index++}]∴\t{condition}\t({condition.Reason}\t{StringTool.ComposeList(condictionIndexs)})\n";
+                answer += $"[{index++}]∴\t{condition}\t({condition.Reason}\t{StringTool.ComposeList(conditionIndexs)})\n";
             }
         }
         answer += "\n";

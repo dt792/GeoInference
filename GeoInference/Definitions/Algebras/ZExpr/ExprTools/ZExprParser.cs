@@ -173,8 +173,6 @@ public class ZExprParser
                     return new PowerNode() { Base = argument, Exponent = exponent };
                 }
                 throw new ArgumentException($"Function  {functionName} requires two arguments");
-            // case "sin": return new SinNode(argument);
-            // case "cos": return new CosNode(argument);
             case "signum":
                 return RealNode.One;
             case "sqrt":
@@ -185,6 +183,5 @@ public class ZExprParser
     }
 
     private char CurrentChar() => input[pos];
-
 
 }

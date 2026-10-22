@@ -1,0 +1,10 @@
+{
+    "Name": "1554",
+    "Problem_Text_CN": "\u5982\u56FE\u6240\u793A\uFF0CJK=2*b\u002B3\uFF0CJM=3*a\uFF0CLK=21\uFF0CLM=45\uFF0C\u2220MLJ=30\u00B0\uFF0C\u2220RLK=70\u00B0\uFF0CMJ\u548CLK\u662F\u5E73\u884C\u56DB\u8FB9\u5F62JMLK\u7684\u4E00\u7EC4\u5BF9\u8FB9\u3002\u6C42a\u7684\u503C\u3002",
+    "Problem_Text_EN": "As shown in the diagram, JK=2*b\u002B3, JM=3*a, LK=21, LM=45, \u2220MLJ=30\u00B0, \u2220RLK=70\u00B0, MJ and LK are opposite sides of the \u25B1 JMLK. Find the value of a.",
+    "Answer_Text_CN": "\u7531\u9898\u610F\u5F97\uFF0CKJ=2\u00D7b\u002B3\uFF081\uFF09\uFF0CMJ=3\u00D7a\uFF082\uFF09\uFF0CKL=21\uFF083\uFF09\uFF0CML=45\uFF084\uFF09\uFF0C\u2220MLR=30\uFF085\uFF09\uFF0C\u2220RLK=70\uFF086\uFF09\uFF0CJMLK\u662F\u5E73\u884C\u56DB\u8FB9\u5F62\uFF087\uFF09\uFF1B\n\u5DF2\u77E5\u6761\u4EF6\uFF087\uFF09\uFF0C\u7531\u5E73\u884C\u56DB\u8FB9\u5F62\u6027\u8D28\uFF08\u5BF9\u8FB9\u76F8\u7B49\uFF09\u53EF\u5F97\uFF0CMJ=KL\uFF088\uFF09\uFF1B\n\u5DF2\u77E5\u6761\u4EF6\uFF083\uFF09\uFF088\uFF09\uFF0C\u8BA1\u7B97\u53EF\u5F97\uFF0CMJ=21\uFF089\uFF09\uFF1B\n\u5DF2\u77E5\u6761\u4EF6\uFF082\uFF09\uFF089\uFF09\uFF0C\u8BA1\u7B97\u53EF\u5F97\uFF0Ca=7\uFF0810\uFF09\uFF1B\n\u5B8C\u6210\u89E3\u9898\u3002",
+    "Answer_Text_EN": "From the conditions of the problem, we have KJ=2\u00D7b\u002B3 (1), MJ=3\u00D7a (2), KL=21 (3), ML=45 (4), \u2220MLR=30 (5), \u2220RLK=70 (6), JMLK is a parallelogram (7);\nGiven conditions (7) , by the Properties of Parallelograms (Opposite Sides Equal), we have MJ=KL (8);\nGiven conditions (3) (8) , by calculation, we have MJ=21 (9);\nGiven conditions (2) (9) , by calculation, we have a=7 (10);\nProof completed.",
+    "Problem_Input_CN": "Points: J(-4.32,6.78) K(9.16,6.8) L(7,-3.48) M(-7.88,-3.46) R(1.05,1.92)\nLines:JM ML LK KJ JRL MRK\r\nVars:a:Distance b:Distance\nJK=2*b\u002B3\nJM=3*a\nLK=21\nLM=45\n\u89D2MLJ=30\n\u89D2RLK=70\n\u5E73\u884C\u56DB\u8FB9\u5F62 JMLK\nSolve:a\n\n",
+    "Problem_Input_EN": "Points: J(-4.32,6.78) K(9.16,6.8) L(7,-3.48) M(-7.88,-3.46) R(1.05,1.92)\nLines:JM ML LK KJ JRL MRK\r\nJK=2*b\u002B3\nJM=3*a\nLK=21\nLM=45\nAngle_MLJ=30\nAngle_RLK=70\nParallelogram JMLK\nSolve:a\n\n",
+    "Description": ""
+}

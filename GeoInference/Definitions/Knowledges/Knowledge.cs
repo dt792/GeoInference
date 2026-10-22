@@ -29,13 +29,14 @@ public abstract class Knowledge
     public void AddReason([CallerMemberName] string reason = "error")
     {
         if (reason is null) return;
-        if (GeoInferenceApp.IsZhOrEn)
-            if (ZhEn.RuleAliases.ContainsKey(reason))
-                Reason = ZhEn.RuleAliases[reason];
-            else
-                Reason = reason;
+        if (GeoInferenceApp.UseChinese)
+        {
+            Reason = ZhEn.RuleAliases.TryGetValue(reason, out var alias) ? alias : reason;
+        }
         else
+        {
             Reason = reason;
+        }
     }
     public void AddCondition(IEnumerable<Knowledge> conditionPreds)
     {

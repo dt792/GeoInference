@@ -1,7 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Input;
 
 /// <summary>
 
@@ -9,13 +8,13 @@ using System.Windows.Input;
 public class MapleBaseProductionMatrix
 {
     public bool IsLog = false;
-    public static Func<string, Quantity> ParseQuantity;
     #region Maple Script
     public const string MapleFile = @"with(LinearAlgebra):
 CreateMultiplicativeSystem := proc()
     local sys := module()
         local QIndex := table(), QList := Array(1..0), EqList := Array(1..0), 
-              ReducedMat := NULL, RankVal := 0, IsReduced := false, HasContradictionFlag := false;
+              ReducedMat := NULL, RankVal := 0, IsReduced := false, HasContradictionFlag := false,
+              HasNewChanges := true;
 
         export Init, AddEquation, Eliminate, IsRepresentable, 
                TryEvaluateExpression, ReduceColumnsByContinuedEquality, HasContradiction, DiscoverRelations,
@@ -24,11 +23,13 @@ CreateMultiplicativeSystem := proc()
         Init := proc()
             QIndex := table(); QList := Array(1..0); EqList := Array(1..0);
             ReducedMat := NULL; RankVal := 0; IsReduced := false; HasContradictionFlag := false;
+            HasNewChanges := true;
         end proc;
 
         AddEquation := proc(coeffDict::table, constant::algebraic)
             local q, idxList, oldNVars, nVars, i, j, oldRow, newRow;
             IsReduced := false;
+            HasNewChanges := true;
             idxList := [indices(coeffDict, 'nolist')];
             oldNVars := numelems(QList);
             nVars := oldNVars;
@@ -268,7 +269,7 @@ CreateMultiplicativeSystem := proc()
             end do;
 
             EqList := newEqList; QList := newQList; QIndex := newQIndex;
-            IsReduced := false; ReducedMat := NULL; return true;
+            IsReduced := false; ReducedMat := NULL; HasNewChanges := true; return true;
         end proc;
 
         HasContradiction := proc() 
@@ -340,8 +341,9 @@ CreateMultiplicativeSystem := proc()
         DiscoverRelations := proc()
             local m, n, nVars, i, j, k, idx, isZero, nonZeroCols, c1, c2, q1, q2, constVal, finalVal,
                   valList, relList, outputList, pivotCols, exprOfVar, keys, colA, colB, rowA, rowB, constA, constB, coeffsA, coeffsB, equal, qA, qB, j1, j2, x, coeffsEqual, ratio;
+            if not HasNewChanges then return []; end if;
             if not IsReduced then Eliminate(); end if;
-            if HasContradictionFlag or ReducedMat = NULL or LinearAlgebra:-RowDimension(ReducedMat) = 0 then return []; end if;
+            if HasContradictionFlag or ReducedMat = NULL or LinearAlgebra:-RowDimension(ReducedMat) = 0 then HasNewChanges := false; return []; end if;
             m := LinearAlgebra:-RowDimension(ReducedMat); n := LinearAlgebra:-ColumnDimension(ReducedMat); nVars := n - 1;
             isZero := x -> evalb(normal(x) = 0);
             valList := Array(1..0); relList := Array(1..0);
@@ -401,6 +403,7 @@ CreateMultiplicativeSystem := proc()
                     end if;
                 end do;
             end do;
+            HasNewChanges := false;
             return [seq(valList[i], i=1..numelems(valList)), seq(relList[i], i=1..numelems(relList))];
         end proc;
 
@@ -445,9 +448,15 @@ end proc:";
     #endregion
 
     #region 
-    public void AddEquation(Dictionary<Quantity, Expr> coeffDict, Expr constant)
+    private readonly List<MatrixProvenance.SourceEntry> _equationSources = [];
+    public virtual void AddEquation(Dictionary<Quantity, Expr> coeffDict, Expr constant, Knowledge knowledge = null)
     {
         if (coeffDict == null || coeffDict.Count == 0) return;
+
+        _equationSources.Add(new MatrixProvenance.SourceEntry(
+            coeffDict.Keys.Select(q => q.ToString()).ToHashSet(),
+            constant is not null && constant.ToString() != "0",
+            knowledge is null ? [] : [knowledge]));
 
         var pairs = string.Join(", ", coeffDict.Select(kv => $"{kv.Key}={kv.Value}"));
         string cmd = $"{_matrixName}:-AddEquation(table([{pairs}]), {constant}):";
@@ -503,11 +512,20 @@ end proc:";
         }
         return (false, null);
     }
-    public bool ReduceColumnsByContinuedEquality(
+    public virtual bool ReduceColumnsByContinuedEquality(
         Dictionary<Quantity, Expr> coeffDict,
         Expr actualValue = null,
-        Quantity baseVar = null)
+        Quantity baseVar = null,
+        IEnumerable<Knowledge> provenance = null)
     {
+        if (provenance is not null && coeffDict is not null && coeffDict.Count > 0)
+        {
+            _equationSources.Add(new MatrixProvenance.SourceEntry(
+                coeffDict.Keys.Select(q => q.ToString()).ToHashSet(),
+                actualValue is not null,
+                provenance.ToList()));
+        }
+
         var pairs = string.Join(", ", coeffDict.Select(kv => $"{kv.Key}={kv.Value}"));
         string avParam = actualValue is null ? "NULL" : actualValue.ToString();
         string bvParam = baseVar == null ? "NULL" : baseVar.ToString();
@@ -608,7 +626,7 @@ end proc:";
     }
     public double CalculateDensity(bool onlyActiveRegion = true)
         => 1.0 - CalculateSparsity(onlyActiveRegion);
-    public List<Knowledge> DiscoverRelations()
+    public virtual List<Knowledge> DiscoverRelations()
     {
         List<Knowledge> result = [];
         var res = RunCommand($"{_matrixName}:-DiscoverRelations();").Trim();
@@ -627,10 +645,11 @@ end proc:";
             {
                 Quantity var = Quantity.Parse(item[0]);
                 QuantityValue pred = new QuantityValue(var, item[1]);
-                if (GeoInferenceApp.IsZhOrEn)
+                if (GeoInferenceApp.UseChinese)
                     pred.Reason = "乘积矩阵发现";
                 else
                     pred.Reason = "DiscoveredByProductionMatrix";
+                pred.AddCondition(MatrixProvenance.FindPathToAnchor(_equationSources, var.ToString()));
                 result.Add(pred);
             }
             else if (item.Count == 3)
@@ -638,20 +657,23 @@ end proc:";
                 Quantity pVar = Quantity.Parse(item[0]);
                 Quantity qVar = Quantity.Parse(item[1]);
                 QuantityRatio pred = new QuantityRatio(pVar, qVar, item[2]);
-                if (GeoInferenceApp.IsZhOrEn)
+                if (GeoInferenceApp.UseChinese)
                     pred.Reason = "乘积矩阵发现";
                 else
                     pred.Reason = "DiscoveredByProductionMatrix";
+                pred.AddCondition(MatrixProvenance.FindPath(_equationSources, pVar.ToString(), qVar.ToString()));
                 result.Add(pred);
             }
         }
         return result;
     }
-    private string RunCommand(string command)
+    public string RunCommand(string command)
     {
-        _commands.Add(command);
         if (IsLog)
+        {
+            _commands.Add(command);
             _log.Add($"Run command: {command}");
+        }
         var result = _mapleApp.Run(command);
         if (result != null && result.Contains("Error"))
             throw new MapleExecutionException($"Maple execution error: {command}\nDetails: {result}");

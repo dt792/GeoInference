@@ -22,7 +22,9 @@ internal class KM_SCR_SolvingEngine : IInferenceEngine
     { typeof(Line),[] },
     { typeof(Angle),[] },
     { typeof(Circle),[] },
-    { typeof(Triangle),[] } };
+    { typeof(Triangle),[] },
+    { typeof(Quadrilateral),[] },
+    };
     public override void Init()
     {
 
@@ -46,14 +48,14 @@ internal class KM_SCR_SolvingEngine : IInferenceEngine
 
         foreach (var item in KnowledgeBase.Predicates)
         {
-            if (GeoInferenceApp.IsZhOrEn)
+            if (GeoInferenceApp.UseChinese)
                 item.Value.AddReason("已知");
             else
                 item.Value.AddReason("Given");
         }
         foreach (var item in KnowledgeBase.Equations)
         {
-            if (GeoInferenceApp.IsZhOrEn)
+            if (GeoInferenceApp.UseChinese)
                 item.Value.AddReason("已知");
             else
                 item.Value.AddReason("Given");

@@ -10,12 +10,36 @@ public class EqualityChain
         index = curIndex++;
     }
     public int lastLength;
-    public bool noAuctual { get; set; } = true;
+    public bool valueEmitted;
     public QuantityClassifications Unit { get => CoffDict.First().Key.Unit; }
     public Expr ActualValue { get; set; } = null;
     public List<(string node1, string node2, Knowledge reason)> Reasons { get; set; } = [];
     public ZDict<string, ZDict<string, Knowledge>> ReasonGraph { get; set; } = [];
     public Dictionary<Quantity, Expr> CoffDict { get; set; } = [];
+    /// <summary>
+    /// </summary>
+    public EqualityChain Clone()
+    {
+        var clone = new EqualityChain
+        {
+            index = index,
+            lastLength = lastLength,
+            valueEmitted = valueEmitted,
+            ActualValue = ActualValue,
+            Reasons = new List<(string node1, string node2, Knowledge reason)>(Reasons),
+            CoffDict = new Dictionary<Quantity, Expr>(CoffDict),
+        };
+        foreach (var key in ReasonGraph.Keys)
+        {
+            var inner = new ZDict<string, Knowledge>();
+            foreach (var innerKey in ReasonGraph[key].Keys)
+            {
+                inner[innerKey] = ReasonGraph[key][innerKey];
+            }
+            clone.ReasonGraph[key] = inner;
+        }
+        return clone;
+    }
     #region Expand
     public void AddValue(QuantityValue quantityValue)
     {
@@ -44,13 +68,13 @@ public class EqualityChain
     public void AddRatio(Quantity thisBridge, Quantity newQuantity, Expr ratio, Knowledge reason)
     {
        
-
         CoffDict.Add(newQuantity, (ratio * CoffDict[thisBridge]).Simplify());
         SetReason(thisBridge.ToString(), newQuantity.ToString(), reason);
     }
     public void CombineByValue(EqualityChain continuedEquality)
     {
-        var actualValueRatio = ActualValue / continuedEquality.ActualValue;
+        if (ReferenceEquals(this, continuedEquality))
+            return;
         foreach (var kv in continuedEquality.CoffDict.ToList())
         {
             if (CoffDict.ContainsKey(kv.Key)) { continue; }
@@ -64,6 +88,8 @@ public class EqualityChain
     }
     public void CombineByRatio(EqualityChain continuedEquality, Quantity thisBridge, Quantity absorbedBridge, Expr ratio, QuantityRatio reason)
     {
+        if (ReferenceEquals(this, continuedEquality))
+            return;
         if (!CoffDict.ContainsKey(absorbedBridge))
         {
             CoffDict.Add(absorbedBridge, ratio * CoffDict[thisBridge]);
@@ -92,19 +118,21 @@ public class EqualityChain
         List<Knowledge> result = [];
         if (ActualValue is not null)
         {
-            foreach (var item in CoffDict)
+            int valueFrom = valueEmitted ? lastLength : 0;
+            foreach (var item in CoffDict.Skip(valueFrom))
             {
                 Quantity quantity = item.Key;
                 QuantityValue pred = new QuantityValue(quantity, ActualValue / item.Value);
-                var c = FindShortestPath(quantity.ToString(), "value");
-                if (GeoInferenceApp.IsZhOrEn)
+                var c = FindShortestPath(quantity.ToString(), Value);
+                if (GeoInferenceApp.UseChinese)
                     pred.AddReason("连等式发现");
                 else
-                    pred.AddReason("DiscoverdByEqualityChain");
+                    pred.AddReason("DiscoveredByEqualityChain");
                 pred.AddCondition(c);
-                SetReason(quantity, "value", pred);
+                SetReason(quantity, Value, pred);
                 result.Add(pred);
             }
+            valueEmitted = true;
         }
         foreach (var q1 in CoffDict.Take(lastLength))
         {
@@ -112,52 +140,31 @@ public class EqualityChain
             {
                 QuantityRatio pred = new(q1.Key, q2.Key, q2.Value / q1.Value);
                 var c = FindShortestPath(q1.Key.ToString(), q2.Key.ToString());
-                pred.AddReason();
+                if (GeoInferenceApp.UseChinese)
+                    pred.AddReason("连等式发现");
+                else
+                    pred.AddReason("DiscoveredByEqualityChain");
                 pred.AddCondition(c);
-                SetReason(q1.Key, q2, pred);
+                SetReason(q1.Key, q2.Key, pred);
                 result.Add(pred);
-                if (!noAuctual)
-                {
-                    QuantityValue pred2 = new QuantityValue(q1.Key, ActualValue / CoffDict[q1.Key]);
-                    var c2 = FindShortestPath(q1.Key.ToString(), "value");
-                    if (GeoInferenceApp.IsZhOrEn)
-                        pred2.AddReason("连等式发现");
-                    else
-                        pred2.AddReason("DiscoverdByEqualityChain");
-                    pred2.AddCondition(c2);
-                    SetReason(q1.Key, "value", pred2);
-                    result.Add(pred2);
-                }
             }
         }
         var newQuantitys = CoffDict.Skip(lastLength).ToList();
-        for (int i = 0; i < newQuantitys.Count(); i++)
+        for (int i = 0; i < newQuantitys.Count; i++)
         {
-            for (int j = i + 1; j < newQuantitys.Count(); j++)
+            for (int j = i + 1; j < newQuantitys.Count; j++)
             {
                 var q1 = newQuantitys[i];
                 var q2 = newQuantitys[j];
                 QuantityRatio pred = new(q1.Key, q2.Key, q2.Value / q1.Value);
                 var c = FindShortestPath(q1.Key.ToString(), q2.Key.ToString());
-                if (GeoInferenceApp.IsZhOrEn)
+                if (GeoInferenceApp.UseChinese)
                     pred.AddReason("连等式发现");
                 else
-                    pred.AddReason("DiscoverdByEqualityChain");
+                    pred.AddReason("DiscoveredByEqualityChain");
                 pred.AddCondition(c);
-                SetReason(q1.Key, q2, pred);
+                SetReason(q1.Key, q2.Key, pred);
                 result.Add(pred);
-                if (!noAuctual)
-                {
-                    QuantityValue pred2 = new QuantityValue(q1.Key, ActualValue / CoffDict[q1.Key]);
-                    var c2 = FindShortestPath(q1.Key.ToString(), "value");
-                    if (GeoInferenceApp.IsZhOrEn)
-                        pred2.AddReason("连等式发现");
-                    else
-                        pred2.AddReason("DiscoverdByEqualityChain");
-                    pred2.AddCondition(c2);
-                    SetReason(q1.Key, "value", pred2);
-                    result.Add(pred2);
-                }
             }
         }
         lastLength = CoffDict.Count;
@@ -165,30 +172,29 @@ public class EqualityChain
     }
     public void SetReason(object node1, object node2, Knowledge reason)
     {
-        if (node1.ToString().GetHashCode() > node2.ToString().GetHashCode())
+        string name1 = node1.ToString(), name2 = node2.ToString();
+        if (name1.GetHashCode() > name2.GetHashCode())
         {
-            var tmp = node1;
-            node1 = node2;
-            node2 = tmp;
+            (name1, name2) = (name2, name1);
         }
-        
+
         for (int i = 0; i < Reasons.Count; i++)
         {
             var item = Reasons[i];
-            if (item.Item1 == node1.ToString() && item.Item2 == node2.ToString())
+            if (item.Item1 == name1 && item.Item2 == name2)
             {
                 if (item.reason.Level > reason.Level)
                 {
                     Reasons[i] = (item.node1, item.node2, reason);
-                    ReasonGraph[node1.ToString()][node2.ToString()] = reason;
-                    ReasonGraph[node2.ToString()][node1.ToString()] = reason;
+                    ReasonGraph[name1][name2] = reason;
+                    ReasonGraph[name2][name1] = reason;
                 }
                 return;
             }
         }
-        Reasons.Add((node1.ToString(), node2.ToString(), reason));
-        ReasonGraph[node1.ToString()][node2.ToString()] = reason;
-        ReasonGraph[node2.ToString()][node1.ToString()] = reason;
+        Reasons.Add((name1, name2, reason));
+        ReasonGraph[name1][name2] = reason;
+        ReasonGraph[name2][name1] = reason;
     }
     public List<Knowledge> FindShortestPath(string start, string end)
     {
@@ -230,6 +236,47 @@ public class EqualityChain
 
         return ReconstructPath(end, previousNodes, previousEdges);
     }
+    /// <summary>
+    /// </summary>
+    public Dictionary<string, List<Knowledge>> FindShortestPathsFrom(string start)
+    {
+        var result = new Dictionary<string, List<Knowledge>>();
+        if (!ReasonGraph.ContainsKey(start) || string.IsNullOrEmpty(start))
+            return result;
+
+        var visited = new HashSet<string>();
+        var queue = new Queue<string>();
+        var previousNodes = new Dictionary<string, string>();
+        var previousEdges = new Dictionary<string, Knowledge>();
+
+        queue.Enqueue(start);
+        visited.Add(start);
+
+        while (queue.Count > 0)
+        {
+            string currentNode = queue.Dequeue();
+            if (ReasonGraph.TryGetValue(currentNode, out var neighbors))
+            {
+                foreach (var (neighbor, edge) in neighbors)
+                {
+                    if (!visited.Contains(neighbor))
+                    {
+                        visited.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                        previousNodes[neighbor] = currentNode;
+                        previousEdges[neighbor] = edge;
+                    }
+                }
+            }
+        }
+
+        foreach (var node in visited)
+        {
+            if (node == start) continue;
+            result[node] = ReconstructPath(node, previousNodes, previousEdges);
+        }
+        return result;
+    }
     private List<Knowledge> ReconstructPath(
         string end,
         Dictionary<string, string> previousNodes,
@@ -257,11 +304,12 @@ public class EqualityChain
     }
     public Knowledge GetValueReason(Quantity quantity)
     {
-        string f = quantity.ToString(), s = "value";
-        if (quantity.ToString().GetHashCode() > "value".GetHashCode())
+        string qname = quantity.ToString();
+        string f = qname, s = "value";
+        if (qname.GetHashCode() > "value".GetHashCode())
         {
             f = "value";
-            s = quantity.ToString();
+            s = qname;
         }
         foreach (var item in Reasons)
         {
@@ -271,16 +319,22 @@ public class EqualityChain
             }
         }
         QuantityValue pred = new QuantityValue(quantity, ActualValue / CoffDict[quantity]);
-        Reasons.Add((quantity.ToString(), "value".ToString(), pred));
+        if (GeoInferenceApp.UseChinese)
+            pred.AddReason("连等式发现");
+        else
+            pred.AddReason("DiscoveredByEqualityChain");
+        pred.AddCondition(FindShortestPath(qname, Value)); // 溯源：挂上到定值锚点的最短路径
+        Reasons.Add((qname, "value", pred));
         return pred;
     }
     public Knowledge GetRatioReason(Quantity q1, Quantity q2)
     {
-        string f = q1.ToString(), s = q2.ToString();
-        if (q1.ToString().GetHashCode() > q2.ToString().GetHashCode())
+        string q1Name = q1.ToString(), q2Name = q2.ToString();
+        string f = q1Name, s = q2Name;
+        if (q1Name.GetHashCode() > q2Name.GetHashCode())
         {
-            f = q2.ToString();
-            s = q1.ToString();
+            f = q2Name;
+            s = q1Name;
         }
         foreach (var item in Reasons)
         {
@@ -294,7 +348,12 @@ public class EqualityChain
             }
         }
         QuantityRatio ratio = new QuantityRatio(q1, q2, CoffDict[q2] / CoffDict[q1]);
-        Reasons.Add((q1.ToString(), q2.ToString(), ratio));
+        if (GeoInferenceApp.UseChinese)
+            ratio.AddReason("连等式发现");
+        else
+            ratio.AddReason("DiscoveredByEqualityChain");
+        ratio.AddCondition(FindShortestPath(q1Name, q2Name)); // 溯源：挂上两量之间的最短路径
+        Reasons.Add((q1Name, q2Name, ratio));
         return ratio;
     }
     #endregion

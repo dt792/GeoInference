@@ -1,9 +1,9 @@
-﻿
+﻿﻿
 [RuleType(RuleType.Tradition)]
 public class RuleCongQuad : RuleClass
 {
     [Alias("全等四边形的性质")]
-    public void RuleCEQ001PropertiesOfCongruentQuadrilateral(CongruentQuadriliateral quad)
+    public void RuleCEQ001PropertiesOfCongruentQuadrilateral(CongruentQuadrilateral quad)
     {
         var abS = GetSegment(quad[0], quad[1]);
         var bcS = GetSegment(quad[1], quad[2]);
@@ -23,8 +23,8 @@ public class RuleCongQuad : RuleClass
         var gheA = GetAngle(quad[6], quad[7], quad[4]);
         var hefA = GetAngle(quad[7], quad[4], quad[5]);
 
-        var quad1 = GetQuadriliateral((Point)quad[0], (Point)quad[1], (Point)quad[2], (Point)quad[3]);
-        var quad2 = GetQuadriliateral((Point)quad[4], (Point)quad[5], (Point)quad[6], (Point)quad[7]);
+        var quad1 = GetQuadrilateral((Point)quad[0], (Point)quad[1], (Point)quad[2], (Point)quad[3]);
+        var quad2 = GetQuadrilateral((Point)quad[4], (Point)quad[5], (Point)quad[6], (Point)quad[7]);
         if (abS != efS)
         {
             var pred = new QuantityRatio(abS.Length, efS.Length);
@@ -92,7 +92,7 @@ public class RuleCongQuad : RuleClass
     }
 
     [Alias("相似四边形的性质")]
-    public void RuleCEQ002PropertiesOfSimilarQuadrilateral(SimilarQuadriliateral quad)
+    public void RuleCEQ002PropertiesOfSimilarQuadrilateral(SimilarQuadrilateral quad)
     {
         var abS = GetSegment(quad[0], quad[1]);
         var bcS = GetSegment(quad[1], quad[2]);
@@ -112,8 +112,8 @@ public class RuleCongQuad : RuleClass
         var gheA = GetAngle(quad[6], quad[7], quad[4]);
         var hefA = GetAngle(quad[7], quad[4], quad[5]);
 
-        var quad1 = GetQuadriliateral((Point)quad[0], (Point)quad[1], (Point)quad[2], (Point)quad[3]);
-        var quad2 = GetQuadriliateral((Point)quad[4], (Point)quad[5], (Point)quad[6], (Point)quad[7]);
+        var quad1 = GetQuadrilateral((Point)quad[0], (Point)quad[1], (Point)quad[2], (Point)quad[3]);
+        var quad2 = GetQuadrilateral((Point)quad[4], (Point)quad[5], (Point)quad[6], (Point)quad[7]);
         if (abS != efS && bcS != fgS)
         {
             var pred = new ProductionEquation(new() { { abS.Length, 1 }, { fgS.Length, 1 }, { efS.Length, -1 }, { bcS.Length, -1 } }, 1);

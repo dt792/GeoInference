@@ -7,8 +7,6 @@
     MapleApp MapleApp { get; set; } = MapleApp.Instance;
     public void Judge(Knowledge pred)
     {
-        if (pred.StrContains("SectorOBA_Area=12*Pi"))
-            ;
         if (pred is QuantityValue value)
         {
             foreach (var target in TargetBase.SolveQuantityValueTargets.ToArray())
@@ -119,7 +117,8 @@
                 foreach (var q in quantities)
                 {
                     var expr = ce.ToValue(q);
-                    target.Tmp *= expr.Mul(target.CoffDict[q]);
+                    target.Tmp *= expr.Pow(target.CoffDict[q]);
+                    target.Conditions.Add(ce.GetValueReason(q));
                     target.CoffDict.Remove(q);
                 }
                 if (target.CoffDict.Keys.Count == 0)
@@ -142,7 +141,9 @@
                     var fq = quantities[0];
                     foreach (var q in quantities.Skip(1))
                     {
-                        target.CoffDict[fq] += ce.To(q, fq);
+                        target.Tmp *= (ce.CoffDict[fq] / ce.CoffDict[q]).Pow(target.CoffDict[q]);
+                        target.CoffDict[fq] += target.CoffDict[q];
+                        target.Conditions.Add(ce.GetRatioReason(q, fq));
                         target.CoffDict.Remove(q);
                     }
                 }
@@ -283,9 +284,9 @@
         {
             if (quantity is GeoQuantity geoQuantity)
             {
-                if (knowledgeBase.IndexContinuedDict.ContainsKey(geoQuantity))
+                if (knowledgeBase.IndexContinuedDict.TryGetValue(geoQuantity, out var chain))
                 {
-                    dict[knowledgeBase.IndexContinuedDict[geoQuantity]].Add(geoQuantity);
+                    dict[chain].Add(geoQuantity);
                 }
             }
         }

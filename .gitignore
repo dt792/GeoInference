@@ -39,7 +39,7 @@ bld/
 [Ll]ogs/
 
 # Visual Studio 2015/2017 cache/options directory
-.vs/
+#.vs/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
@@ -363,9 +363,5 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
-Result/FormalGeo7KL6_Discovering/
-Result/FormalGeo7KL6_Solving/
-Result/FormalGeo7KL6_SolvingNoCompassMatrix/
-Result/FormalGeo7KL6_SolvingNoSimplifyEqSym/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd

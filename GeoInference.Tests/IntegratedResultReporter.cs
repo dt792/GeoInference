@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 
 using ClosedXML.Excel;
-using GeoInference.MergeKnowledges;
 
 using ScottPlot;
 
@@ -17,9 +16,49 @@ internal class IntegratedResultReporter
 
     private const string DatasetName = GeoProblemDataset.FormalGeo7KL6;
 
+    public static readonly string[] AllDatasets =
+    {
+        GeoProblemDataset.FormalGeo7KL1,
+        GeoProblemDataset.FormalGeo7KL2,
+        GeoProblemDataset.FormalGeo7KL3,
+        GeoProblemDataset.FormalGeo7KL4,
+        GeoProblemDataset.FormalGeo7KL5,
+        GeoProblemDataset.FormalGeo7KL6,
+    };
+
     public string ReportDir => Path.Combine(DefaultResultPath, $"{DatasetName}_Reports");
 
-    public int Total { get; set; }
+    private string _levelOutputDir = null;
+    private string CurrentOutputDir => _levelOutputDir ?? ReportDir;
+
+    public static string LevelOf(string datasetName) => datasetName.Replace("FormalGeo7K", "");
+
+    /// <summary>
+    /// 全部层级（L1~L6）的题目总数。
+    /// </summary>
+    public int Total { get; private set; }
+
+    private readonly Dictionary<string, int> _levelTotals = new();
+
+    /// <summary>
+    /// 统计各层级的题目总数，并把 <see cref="Total"/> 设为全部层级之和。
+    /// </summary>
+    public void InitTotals()
+    {
+        _levelTotals.Clear();
+        foreach (var datasetName in AllDatasets)
+        {
+            _levelTotals[LevelOf(datasetName)] = GeoProblemDataset.Instance[datasetName]?.ProblemNames.Count ?? 0;
+        }
+        Total = _levelTotals.Values.Sum();
+    }
+
+    /// <summary>
+    /// 获取指定层级的题目总数（用于计算该层级的解题成功率）。
+    /// </summary>
+    public int GetLevelTotal(string level)
+        => _levelTotals.TryGetValue(level, out int count) ? count : 0;
+
     public Dictionary<string, GeoInferenceResult> SolvingResults { get; } = new();
     public Dictionary<string, GeoInferenceResult> SolvingNoCompassMatrixResults { get; } = new();
     public Dictionary<string, GeoInferenceResult> SolvingNoSimplifyEqSymResults { get; } = new();
@@ -42,12 +81,86 @@ internal class IntegratedResultReporter
         {nameof(AngleQuantityRule.RuleAQ007AlternateInteriorAnglesEqual),"AlterAnglesEqual" },
     };
 
-    public void LoadAllData()
+    public void LoadAllData(string datasetName = GeoProblemDataset.FormalGeo7KL6)
     {
-        LoadData(GeoProblemDataset.FormalGeo7KL6, nameof(GeoInferenceConfigs.Solving), SolvingResults);
-        LoadData(GeoProblemDataset.FormalGeo7KL6, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), SolvingNoCompassMatrixResults);
-        LoadData(GeoProblemDataset.FormalGeo7KL6, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), SolvingNoSimplifyEqSymResults);
-        LoadData(GeoProblemDataset.FormalGeo7KL6, nameof(GeoInferenceConfigs.Discovering), DiscoveringResults);
+        LoadData(datasetName, nameof(GeoInferenceConfigs.Solving), SolvingResults);
+        LoadData(datasetName, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), SolvingNoCompassMatrixResults);
+        LoadData(datasetName, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), SolvingNoSimplifyEqSymResults);
+        LoadData(datasetName, nameof(GeoInferenceConfigs.Discovering), DiscoveringResults);
+    }
+
+    public void GenerateAllLevelReports()
+    {
+        InitTotals();
+        var mriPlots = new List<(string Level, Plot Plot)>();
+        var smriPlots = new List<(string Level, Plot Plot)>();
+        var levelResourceUsage = new Dictionary<string, double[]>();
+        var allSolvingTime = new List<double>();
+        var allDiscoveringTime = new List<double>();
+        var allSolvingMem = new List<double>();
+        var allDiscoveringMem = new List<double>();
+        var allSolvingRi = new List<double>();
+        var allDiscoveringRi = new List<double>();
+        using var metricsWorkbook = new XLWorkbook();
+        foreach (var datasetName in AllDatasets)
+        {
+            LoadAllData(datasetName);
+            _currentLevel = LevelOf(datasetName);
+            _levelOutputDir = Path.Combine(ReportDir, _currentLevel);
+            Directory.CreateDirectory(_levelOutputDir);
+            AddMetricsTables(metricsWorkbook, _currentLevel);
+
+            var solvingTime = SolvingResults.Values.Select(r => r.InferenceWallClockTime.TotalSeconds).ToList();
+            var discoveringTime = DiscoveringResults.Values.Select(r => r.InferenceWallClockTime.TotalSeconds).ToList();
+            // 峰值内存 / 规则实例化次数仅统计成功解出的实例（fix2：明确口径，成功 = HumanLikeAnswer.IsAllSuccess）。
+            var solvingMem = SolvingResults.Values
+                .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.PeakMemoryBytes > 0)
+                .Select(r => r.PeakMemoryBytes / 1048576.0).ToList();
+            var discoveringMem = DiscoveringResults.Values
+                .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.PeakMemoryBytes > 0)
+                .Select(r => r.PeakMemoryBytes / 1048576.0).ToList();
+            var solvingRi = SolvingResults.Values
+                .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.InferenceMetrics?.ActualRuleInstantiationCount > 0)
+                .Select(r => (double)r.InferenceMetrics.ActualRuleInstantiationCount).ToList();
+            var discoveringRi = DiscoveringResults.Values
+                .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.InferenceMetrics?.ActualRuleInstantiationCount > 0)
+                .Select(r => (double)r.InferenceMetrics.ActualRuleInstantiationCount).ToList();
+            allSolvingTime.AddRange(solvingTime);
+            allDiscoveringTime.AddRange(discoveringTime);
+            allSolvingMem.AddRange(solvingMem);
+            allDiscoveringMem.AddRange(discoveringMem);
+            allSolvingRi.AddRange(solvingRi);
+            allDiscoveringRi.AddRange(discoveringRi);
+            levelResourceUsage[_currentLevel] = new[]
+            {
+                AvgOrNaN(solvingTime), AvgOrNaN(discoveringTime),
+                AvgOrNaN(solvingMem), AvgOrNaN(discoveringMem),
+                AvgOrNaN(solvingRi), AvgOrNaN(discoveringRi)
+            };
+            var (mriPlot, smriPlot) = GenerateMetricsCharts();
+            if (mriPlot != null)
+                mriPlots.Add((_currentLevel, mriPlot));
+            if (smriPlot != null)
+                smriPlots.Add((_currentLevel, smriPlot));
+        }
+
+        AddResourceUsageSummarySheets(metricsWorkbook, levelResourceUsage, new[]
+        {
+            AvgOrNaN(allSolvingTime), AvgOrNaN(allDiscoveringTime),
+            AvgOrNaN(allSolvingMem), AvgOrNaN(allDiscoveringMem),
+            AvgOrNaN(allSolvingRi), AvgOrNaN(allDiscoveringRi)
+        });
+
+        string metricsPath = Path.Combine(ReportDir, "MetricsTables.xlsx");
+        metricsWorkbook.SaveAs(metricsPath);
+        Console.WriteLine($"Metrics Tables Saved: {metricsPath}");
+
+        _levelOutputDir = null;
+        _currentLevel = "L6";
+        LoadAllData();
+
+        GenerateCombinedCompressionRateChart(mriPlots, "Discovered");
+        GenerateCombinedCompressionRateChart(smriPlots, "Solved-state");
     }
 
     public void LoadData(string datasetName, string config, Dictionary<string, GeoInferenceResult> results, string resultDir = GeoInferenceTester.DefaultResultPath)
@@ -72,275 +185,292 @@ internal class IntegratedResultReporter
     public void GenerateStatuAndInferenceTimeReportExcel()
     {
         using var wb = new XLWorkbook();
-
-        void AddInferenceStatuSheet(XLWorkbook wb)
+        foreach (var datasetName in AllDatasets)
         {
-            var ws = wb.Worksheets.Add("InferenceStatus");
+            var solving = new Dictionary<string, GeoInferenceResult>();
+            var solvingNoCompass = new Dictionary<string, GeoInferenceResult>();
+            var solvingNoSimplify = new Dictionary<string, GeoInferenceResult>();
+            var discovering = new Dictionary<string, GeoInferenceResult>();
 
-            var allQuestions = new HashSet<string>();
-            var allDicts = new Dictionary<string, GeoInferenceResult>[]
-            {
-                SolvingResults,
-                SolvingNoCompassMatrixResults,
-                SolvingNoSimplifyEqSymResults,
-                DiscoveringResults
-            };
-            var solvingDicts = new Dictionary<string, GeoInferenceResult>[]
-            {
-                SolvingResults,
-                SolvingNoCompassMatrixResults,
-                SolvingNoSimplifyEqSymResults
-            };
+            LoadData(datasetName, nameof(GeoInferenceConfigs.Solving), solving);
+            LoadData(datasetName, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), solvingNoCompass);
+            LoadData(datasetName, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), solvingNoSimplify);
+            LoadData(datasetName, nameof(GeoInferenceConfigs.Discovering), discovering);
 
-            foreach (var dict in allDicts)
-            {
-                foreach (var key in dict.Keys) allQuestions.Add(key);
-            }
-            var sortedQuestions = allQuestions.OrderBy(q => q).ToList();
-
-            string[] headers =
-            {
-                "ProblemName",
-                "Solving(Finished)\n", "Solving_NoCompass(Finished)\n", "Solving_NoSimplify(Finished)\n",
-                "Discovering\n(Finished)",
-                "Solving\n(Solved)", "Solving_NoCompass\n(Solved)", "Solving_NoSimplify\n(Solved)"
-            };
-
-            for (int i = 0; i < headers.Length; i++)
-            {
-                var cell = ws.Cell(1, i + 1);
-                cell.Value = headers[i];
-                cell.Style.Font.Bold = false;
-                cell.Style.Fill.BackgroundColor = XLColor.LightSkyBlue;
-                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                cell.Style.Alignment.WrapText = true;
-                cell.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-            }
-            ws.Row(1).Height = 30;
-
-            for (int i = 0; i < sortedQuestions.Count; i++)
-            {
-                int row = i + 2;
-                string question = sortedQuestions[i];
-
-                var nameCell = ws.Cell(row, 1);
-                nameCell.Value = question;
-                nameCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-                nameCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-
-                for (int col = 0; col < allDicts.Length; col++)
-                {
-                    var cell = ws.Cell(row, col + 2);
-                    if (allDicts[col].TryGetValue(question, out var result))
-                    {
-                        if (!result.IsCracked)
-                        {
-                            cell.Value = "Pass";
-                            cell.Style.Fill.BackgroundColor = XLColor.LightGreen;
-                        }
-                        else
-                        {
-                            cell.Value = "Cracked";
-                            cell.Style.Fill.BackgroundColor = XLColor.LightCoral;
-                        }
-                    }
-                    else
-                    {
-                        cell.Value = "-";
-                    }
-                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                }
-
-                for (int col = 0; col < solvingDicts.Length; col++)
-                {
-                    var cell = ws.Cell(row, col + 2 + allDicts.Length);
-                    if (solvingDicts[col].TryGetValue(question, out var result))
-                    {
-                        bool isSuccess = result.HumanLikeAnswer?.IsAllSuccess ?? false;
-
-                        if (isSuccess)
-                        {
-                            cell.Value = "Success";
-                            cell.Style.Fill.BackgroundColor = XLColor.LightGreen;
-                        }
-                        else
-                        {
-                            cell.Value = "Fail";
-                            cell.Style.Fill.BackgroundColor = XLColor.LightCoral;
-                        }
-                    }
-                    else
-                    {
-                        cell.Value = "-";
-                    }
-                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                }
-            }
-
-            if (sortedQuestions.Count > 0)
-            {
-                ws.Range(1, 1, sortedQuestions.Count + 1, headers.Length).SetAutoFilter();
-            }
-
-            ws.Columns().AdjustToContents();
-
-            foreach (var col in ws.Columns())
-            {
-                if (col.Width > 40) col.Width = 40;
-            }
-
-            ws.SheetView.FreezeRows(1);
-            ws.SheetView.FreezeColumns(1);
+            AddCombinedSheet(wb, datasetName, solving, solvingNoCompass, solvingNoSimplify, discovering);
         }
 
-        void AddInferenceTimeSheet(XLWorkbook wb)
-        {
-            var ws = wb.Worksheets.Add("Inference time statistics");
-
-            var allQuestions = new HashSet<string>();
-            var dictionaries = new Dictionary<string, GeoInferenceResult>[]
-            {
-                SolvingResults,
-                SolvingNoCompassMatrixResults,
-                SolvingNoSimplifyEqSymResults,
-                DiscoveringResults
-            };
-
-            foreach (var dict in dictionaries)
-            {
-                foreach (var key in dict.Keys)
-                {
-                    allQuestions.Add(key);
-                }
-            }
-            var sortedQuestions = allQuestions.OrderBy(q => q).ToList();
-
-            string[] headers =
-            {
-                "ProblemName",
-                "Solving",
-                "Solving_NoCompassMatrix",
-                "Solving_NoSimplifyEqSym",
-                "Discovering"
-            };
-
-            for (int i = 0; i < headers.Length; i++)
-            {
-                var cell = ws.Cell(1, i + 1);
-                cell.Value = headers[i];
-                cell.Style.Font.Bold = false;
-                cell.Style.Fill.BackgroundColor = XLColor.LightSkyBlue;
-                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                cell.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-            }
-
-            for (int i = 0; i < sortedQuestions.Count; i++)
-            {
-                int row = i + 2;
-                string question = sortedQuestions[i];
-
-                ws.Cell(row, 1).Value = question;
-                ws.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-
-                for (int col = 0; col < dictionaries.Length; col++)
-                {
-                    var dict = dictionaries[col];
-                    var cell = ws.Cell(row, col + 2);
-
-                    if (dict.TryGetValue(question, out var result))
-                    {
-                        double seconds = result.InferenceTime.TotalSeconds;
-                        cell.Value = seconds;
-
-                        cell.Style.NumberFormat.Format = "0.00";
-                        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                    }
-                    else
-                    {
-                        cell.Value = "-";
-                        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    }
-                }
-            }
-
-            if (sortedQuestions.Count > 0)
-            {
-                ws.Range(1, 1, sortedQuestions.Count + 1, headers.Length).SetAutoFilter();
-            }
-
-            ws.Columns().AdjustToContents();
-            ws.SheetView.FreezeRows(1);
-        }
-
-        AddInferenceStatuSheet(wb);
-        AddInferenceTimeSheet(wb);
-        Directory.CreateDirectory(ReportDir);
-        wb.SaveAs(Path.Combine(ReportDir, "StatuAndInferenceTimeReport.xlsx"));
+        string reportPath = Path.Combine(ReportDir, "StatuAndInferenceTimeReport.xlsx");
+        var outputDir = Path.GetDirectoryName(reportPath);
+        if (!string.IsNullOrEmpty(outputDir))
+            Directory.CreateDirectory(outputDir);
+        wb.SaveAs(reportPath);
     }
 
-    public void GenerateMetricsTables(string outputPath = null)
+    private void AddCombinedSheet(
+        XLWorkbook wb,
+        string datasetName,
+        Dictionary<string, GeoInferenceResult> solving,
+        Dictionary<string, GeoInferenceResult> solvingNoCompass,
+        Dictionary<string, GeoInferenceResult> solvingNoSimplify,
+        Dictionary<string, GeoInferenceResult> discovering)
     {
-        outputPath ??= Path.Combine(ReportDir, "MetricsTables.xlsx");
-        using var workbook = new XLWorkbook();
-        var ws = workbook.AddWorksheet("Experimental Results");
+        var ws = wb.Worksheets.Add(datasetName);
+
+        var allDicts = new Dictionary<string, GeoInferenceResult>[]
+        {
+            solving,
+            solvingNoCompass,
+            solvingNoSimplify,
+            discovering
+        };
+        var solvingDicts = new Dictionary<string, GeoInferenceResult>[]
+        {
+            solving,
+            solvingNoCompass,
+            solvingNoSimplify
+        };
+
+        var allQuestions = new HashSet<string>();
+        foreach (var dict in allDicts)
+        {
+            foreach (var key in dict.Keys) allQuestions.Add(key);
+        }
+        var sortedQuestions = allQuestions.OrderBy(q => q, StringComparer.Ordinal).ToList();
+
+        string[] headers =
+        {
+            "ProblemName",
+            "Solving\n(Finished)", "Solving_NoCompass\n(Finished)", "Solving_NoSimplify\n(Finished)", "Discovering\n(Finished)",
+            "Solving\n(Solved)", "Solving_NoCompass\n(Solved)", "Solving_NoSimplify\n(Solved)",
+            "Solving\nInference Wall-Clock(s)", "Solving_NoCompass\nInference Wall-Clock(s)", "Solving_NoSimplify\nInference Wall-Clock(s)", "Discovering\nInference Wall-Clock(s)",
+            "Solving\nMemory(MB)", "Solving_NoCompass\nMemory(MB)", "Solving_NoSimplify\nMemory(MB)", "Discovering\nMemory(MB)",
+            "Solving\nActual RI"
+        };
+
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var cell = ws.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = false;
+            cell.Style.Fill.BackgroundColor = XLColor.LightSkyBlue;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            cell.Style.Alignment.WrapText = true;
+            cell.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+        }
+        ws.Row(1).Height = 30;
+
+        const int statusStartCol = 2;
+        int solvedStartCol = statusStartCol + allDicts.Length;
+        int timeStartCol = solvedStartCol + solvingDicts.Length;
+        int memoryStartCol = timeStartCol + allDicts.Length;
+        int actualRiCol = memoryStartCol + allDicts.Length;
+
+        for (int i = 0; i < sortedQuestions.Count; i++)
+        {
+            int row = i + 2;
+            string question = sortedQuestions[i];
+
+            var nameCell = ws.Cell(row, 1);
+            nameCell.Value = question;
+            nameCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            nameCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+            for (int col = 0; col < allDicts.Length; col++)
+            {
+                var cell = ws.Cell(row, statusStartCol + col);
+                if (allDicts[col].TryGetValue(question, out var result))
+                {
+                    if (!result.IsCracked)
+                    {
+                        cell.Value = "Pass";
+                        cell.Style.Fill.BackgroundColor = XLColor.LightGreen;
+                    }
+                    else
+                    {
+                        cell.Value = "Cracked";
+                        cell.Style.Fill.BackgroundColor = XLColor.LightCoral;
+                    }
+                }
+                else
+                {
+                    cell.Value = "-";
+                }
+                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            }
+
+            for (int col = 0; col < solvingDicts.Length; col++)
+            {
+                var cell = ws.Cell(row, solvedStartCol + col);
+                if (solvingDicts[col].TryGetValue(question, out var result))
+                {
+                    bool isSuccess = result.HumanLikeAnswer?.IsAllSuccess ?? false;
+
+                    if (isSuccess)
+                    {
+                        cell.Value = "Success";
+                        cell.Style.Fill.BackgroundColor = XLColor.LightGreen;
+                    }
+                    else
+                    {
+                        cell.Value = "Fail";
+                        cell.Style.Fill.BackgroundColor = XLColor.LightCoral;
+                    }
+                }
+                else
+                {
+                    cell.Value = "-";
+                }
+                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            }
+
+            for (int col = 0; col < allDicts.Length; col++)
+            {
+                var cell = ws.Cell(row, timeStartCol + col);
+                if (allDicts[col].TryGetValue(question, out var result))
+                {
+                    double seconds = result.InferenceWallClockTime.TotalSeconds;
+                    cell.Value = seconds;
+                    cell.Style.NumberFormat.Format = "0.00";
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                }
+                else
+                {
+                    cell.Value = "-";
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+            }
+
+            for (int col = 0; col < allDicts.Length; col++)
+            {
+                var cell = ws.Cell(row, memoryStartCol + col);
+                if (allDicts[col].TryGetValue(question, out var result) && result.PeakMemoryBytes > 0)
+                {
+                    cell.Value = result.PeakMemoryBytes / 1048576.0;
+                    cell.Style.NumberFormat.Format = "0.0";
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                }
+                else
+                {
+                    cell.Value = "-";
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+            }
+
+            {
+                var cell = ws.Cell(row, actualRiCol);
+                if (solving.TryGetValue(question, out var result)
+                    && result.InferenceMetrics != null
+                    && result.InferenceMetrics.ActualRuleInstantiationCount > 0)
+                {
+                    cell.Value = (double)result.InferenceMetrics.ActualRuleInstantiationCount;
+                    cell.Style.NumberFormat.Format = "#,##0";
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                }
+                else
+                {
+                    cell.Value = "-";
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+            }
+        }
+
+        if (sortedQuestions.Count > 0)
+        {
+            ws.Range(1, 1, sortedQuestions.Count + 1, headers.Length).SetAutoFilter();
+        }
+
+        ws.Columns().AdjustToContents();
+
+        foreach (var col in ws.Columns())
+        {
+            if (col.Width > 40) col.Width = 40;
+        }
+
+        ws.SheetView.FreezeRows(1);
+        ws.SheetView.FreezeColumns(1);
+    }
+
+    /// <summary>
+    /// 向已有工作簿追加指定层级的指标表格（两个 sheet：层级主表 + InferenceEfficiency 子表）。
+    /// </summary>
+    public void AddMetricsTables(XLWorkbook workbook, string level)
+    {
+        // One sheet per level: main tables + inference-efficiency Top-5 tables merged into a single page
+        var ws = workbook.AddWorksheet(level);
 
         int currentRow = 1;
 
-        currentRow = GenerateChainedEqualityNecessityTable(ws, currentRow);
+        currentRow = GenerateResourceUsageTable(ws, currentRow, SolvingResults, DiscoveringResults, "Table 1: Resource Usage (Inference Wall-Clock / Memory / Actual RI)");
         currentRow += 2;
 
-        currentRow = GenerateSuccessRateTable(ws, currentRow);
+        currentRow = GenerateCombinedCumulativeTimeTable(ws, currentRow, SolvingResults, "Table 2: Cumulative Time Distribution (Solved-State)");
         currentRow += 2;
 
-        currentRow = GenerateAverageTimeStatisticsTable(ws, currentRow);
+        currentRow = GenerateTop5InferenceEfficiencyTables(ws, currentRow, SolvingResults, "Solved-State", 3);
         currentRow += 2;
 
-        currentRow = GenerateCombinedCumulativeTimeTable(ws, currentRow);
+        currentRow = GenerateAblationTable(ws, currentRow, SolvingResults, SolvingNoCompassMatrixResults, SolvingNoSimplifyEqSymResults, GetLevelTotal(_currentLevel), "Table 6: Ablation Study on Success Rate and Efficiency");
         currentRow += 2;
 
-        currentRow = GenerateInferenceEfficiencyTable(ws, currentRow);
+        currentRow = GenerateTop5InferenceEfficiencyTables(ws, currentRow, DiscoveringResults, "Discovering", 7);
         currentRow += 2;
 
-        currentRow = GenerateAblationTable(ws, currentRow);
-        currentRow += 2;
+        currentRow = GenerateChainedEqualityNecessityTable(ws, currentRow, DiscoveringResults, "Table 10: Matrix Sparsity and Equality Chain Metrics");
 
         ws.Columns().AdjustToContents();
-
-        ws = workbook.AddWorksheet("InferenceEfficiencyTables");
-        currentRow = 1;
-        currentRow = GenerateTop5InferenceEfficiencyTables(ws, currentRow);
-        ws.Columns().AdjustToContents();
-
-        var outputDir = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrEmpty(outputDir))
-            Directory.CreateDirectory(outputDir);
-        workbook.SaveAs(outputPath);
     }
 
-    public void GenerateMetricsCharts()
+    /// <summary>
+    /// </summary>
+    public (Plot Mri, Plot Smri) GenerateMetricsCharts()
     {
-        RulePairGroupedByParamsCountChart();
-        var a = PreidcateCountCompare();
-        var b = SemiRulePairCountCompare();
-        var c = MergedRulePairCountCompare();
-        Top5CompressionRate(new[] { a, b, c });
-        CompressionRate();
+        if (DiscoveringResults.Count == 0 && SolvingResults.Count == 0)
+        {
+            Console.WriteLine("[GenerateMetricsCharts] 结果为空，跳过图表生成。");
+            return (null, null);
+        }
+
+        Plot mriPlot = null;
+        if (DiscoveringResults.Count > 0)
+        {
+            RulePairGroupedByParamsCountChart();
+            var a = PreidcateCountCompare(DiscoveringResults);
+            var b = SemiRulePairCountCompare(DiscoveringResults);
+            var c = MergedRulePairCountCompare(DiscoveringResults);
+            Top5CompressionRate(new[] { a, b, c }, name: "Discovering");
+
+            mriPlot = CompressionRate();
+        }
+
+        if (SolvingResults.Count > 0)
+        {
+            var a = PreidcateCountCompare(SolvingResults);
+            var b = SemiRulePairCountCompare(SolvingResults);
+            var c = MergedRulePairCountCompare(SolvingResults);
+            Top5CompressionRate(new[] { a, b, c }, name: "Solving");
+        }
+
+        Plot smriPlot = SolvingResults.Count > 0 ? SolvingCompressionRate() : null;
+        return (mriPlot, smriPlot);
     }
 
     #region Tables
 
-    private int GenerateChainedEqualityNecessityTable(IXLWorksheet ws, int startRow)
+    private int GenerateChainedEqualityNecessityTable(IXLWorksheet ws, int startRow, Dictionary<string, GeoInferenceResult> source, string title)
     {
-        var matrixSparsityData = DiscoveringResults
+        if (source.Count == 0) return startRow;
+
+        var matrixSparsityData = source
             .SelectMany(r => r.Value.InferenceMetrics.MatrixSparsities)
             .ToList();
 
-        var qvQrProportionData = DiscoveringResults
+        var qvQrProportionData = source
             .Select(r => r.Value.InferenceMetrics.QvQrProportion)
             .ToList();
 
-        var inEqualityChainRatioData = DiscoveringResults
+        var inEqualityChainRatioData = source
             .Select(r => r.Value.InferenceMetrics.InEqualityChainQuantityRatio)
             .ToList();
 
@@ -356,79 +486,169 @@ internal class IntegratedResultReporter
             new[] { "InEquality Chain Quantity Ratio", avgInEquality.ToString("P2"), varInEquality.ToString("F4") }
         };
 
-        return WriteThreeLineTable(ws, startRow, "Table 1: GenerateChainedEqualityNecessityTable", headers, data);
+        return WriteThreeLineTable(ws, startRow, title, headers, data);
     }
+
+    private string _currentLevel = "L6";
+
+    /// <summary>
+    /// </summary>
+    private static readonly (string Method, IReadOnlyDictionary<string, double> Pssr)[] BaselinePssr =
+    {
+        ("PN-BFS",         new Dictionary<string, double> { ["L1"] = 0.5687, ["L2"] = 0.3921, ["L3"] = 0.3281, ["L4"] = 0.2277, ["L5"] = 0.1169, ["L6"] = 0.0632 }),
+        ("FGeo-DRL",       new Dictionary<string, double> { ["L1"] = 0.9797, ["L2"] = 0.8836, ["L3"] = 0.7261, ["L4"] = 0.6039, ["L5"] = 0.5542, ["L6"] = 0.3962 }),
+        ("FGeo-HyperGNet", new Dictionary<string, double> { ["L1"] = 0.9596, ["L2"] = 0.9417, ["L3"] = 0.9067, ["L4"] = 0.7465, ["L5"] = 0.6552, ["L6"] = 0.5882 }),
+        ("DeepSeekv3",     new Dictionary<string, double> { ["L1"] = 0.7319, ["L2"] = 0.5889, ["L3"] = 0.6119, ["L4"] = 0.4507, ["L5"] = 0.4310, ["L6"] = 0.4118 }),
+        ("FGeo-NSS",       new Dictionary<string, double> { ["L1"] = 0.9692, ["L2"] = 0.9306, ["L3"] = 0.9241, ["L4"] = 0.8099, ["L5"] = 0.7255, ["L6"] = 0.4844 }),
+        ("FGeo-ISRL",      new Dictionary<string, double> { ["L1"] = 0.9820, ["L2"] = 0.9635, ["L3"] = 0.8831, ["L4"] = 0.7821, ["L5"] = 0.6022, ["L6"] = 0.2921 }),
+    };
 
     private int GenerateSuccessRateTable(IXLWorksheet ws, int startRow)
     {
-        var solvingSuccessCount = SolvingResults.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
-        double ourSuccessRate = Total > 0 ? (double)solvingSuccessCount / Total : 0;
+        if (SolvingResults.Count == 0) return startRow;
 
-        var headers = new[]
+        var solvingSuccessCount = SolvingResults.Count(r => r.Value.HumanLikeAnswer?.IsAllSuccess ?? false);
+        int levelTotal = GetLevelTotal(_currentLevel);
+        double ourSuccessRate = levelTotal > 0 ? (double)solvingSuccessCount / levelTotal : 0;
+
+        var headers = new[] { "Method", "PSSR" };
+
+        var data = BaselinePssr
+            .Select(b => new[] { b.Method, b.Pssr[_currentLevel].ToString("P2") })
+            .ToList();
+        data.Add(new[] { "KM-SCR(Ours)", ourSuccessRate.ToString("P2") });
+
+        return WriteThreeLineTable(ws, startRow, $"Table 2: FormalGeo7K {_currentLevel} PSSR ({solvingSuccessCount}/{levelTotal})", headers, data);
+    }
+
+    private static double AvgOrNaN(List<double> values)
+        => values.Count > 0 ? values.Average() : double.NaN;
+
+    /// <summary>
+    /// Resource usage summary sheet (averages only) for the Solving mode.
+    /// </summary>
+    public void AddResourceUsageSummarySheets(XLWorkbook workbook,
+        IReadOnlyDictionary<string, double[]> levelAverages, double[] overallAverages)
+    {
+        AddResourceUsageSummarySheet(workbook, "Solving", 0, levelAverages, overallAverages);
+
+        // Place the summary sheet at the front, before the per-level sheets
+        workbook.Worksheet("Solving").Position = 1;
+    }
+
+    /// <summary>
+    /// 单个模式的资源使用汇总页。<paramref name="offset"/> 表示该模式在
+    /// [Solving 时间, Discovering 时间, Solving 内存, Discovering 内存, Solving RI, Discovering RI]
+    /// 数组中的起始下标。
+    /// </summary>
+    private void AddResourceUsageSummarySheet(XLWorkbook workbook, string mode, int offset,
+        IReadOnlyDictionary<string, double[]> levelAverages, double[] overallAverages)
+    {
+        var ws = workbook.AddWorksheet(mode);
+
+        string[] levels = AllDatasets.Select(LevelOf).ToArray();
+        var headers = new[] { "Metric" }.Concat(levels).Concat(new[] { "Overall" }).ToArray();
+
+        string[] metricNames =
         {
-            "Method",
-            "PN-BFS",
-            "FGeo-DRL",
-            "FGeo-HyperGNet",
-            "DeepSeekv3",
-            "FGeo-NSS",
-            "FGeo-ISRL",
-            "KM-SCR(Ours)"
+            "Inference Wall-Clock Time (s)",
+            "Peak Memory (MB)",
+            "Actual Rule Instantiations"
         };
 
-        var data = new List<string[]>
+        string Fmt(double v) => double.IsNaN(v) ? "-" : v.ToString("F2");
+
+        var data = new List<string[]>();
+        for (int m = 0; m < metricNames.Length; m++)
         {
-            new[]
+            int index = offset + m * 2;
+            var row = new List<string> { metricNames[m] };
+            foreach (var level in levels)
             {
-                "PSSR",
-                0.1355.ToString("P2"),
-                0.3962.ToString("P2"),
-                0.5882.ToString("P2"),
-                0.4118.ToString("P2"),
-                0.4844.ToString("P2"),
-                0.2921.ToString("P2"),
-                ourSuccessRate.ToString("P2")
+                row.Add(levelAverages.TryGetValue(level, out var avgs) && index < avgs.Length
+                    ? Fmt(avgs[index])
+                    : "-");
             }
-        };
+            row.Add(overallAverages != null && index < overallAverages.Length ? Fmt(overallAverages[index]) : "-");
+            data.Add(row.ToArray());
+        }
 
-        return WriteThreeLineTable(ws, startRow, "Table 2:FormalGeo7K v2 PSSR", headers, data);
+        int nextRow = WriteThreeLineTable(ws, 1, $"Resource Usage Summary (Average) - {mode}", headers, data);
+
+        // fix2 脚注：明确统计口径（Peak Memory / Rule Instantiations 仅统计成功实例；Wall-Clock Time 为全部实例）。
+        var footnote = ws.Cell(nextRow + 1, 1);
+        footnote.Value = "Note: Peak Memory and Actual Rule Instantiations are averaged over successfully solved instances only; Inference Wall-Clock Time is averaged over all instances.";
+        footnote.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        ws.Range(nextRow + 1, 1, nextRow + 1, headers.Length).Merge();
+
+        ws.Columns().AdjustToContents();
     }
 
-    private int GenerateAverageTimeStatisticsTable(IXLWorksheet ws, int startRow)
+    private int GenerateResourceUsageTable(IXLWorksheet ws, int startRow,
+        Dictionary<string, GeoInferenceResult> solving, Dictionary<string, GeoInferenceResult> discovering, string title)
     {
-        var solvingTime = SolvingResults.Select(r => r.Value.InferenceTime.TotalSeconds).ToList();
-        solvingTime.Sort();
+        if (solving.Count == 0 && discovering.Count == 0) return startRow;
 
-        var (avgSolveTime, varSolveTime) = CalStats(solvingTime);
+        var solvingTime = solving.Values.Select(r => r.InferenceWallClockTime.TotalSeconds).ToList();
+        var discoveringTime = discovering.Values.Select(r => r.InferenceWallClockTime.TotalSeconds).ToList();
+        // 峰值内存 / 规则实例化次数仅统计成功解出的实例（fix2：明确口径）。
+        var solvingMem = solving.Values
+            .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.PeakMemoryBytes > 0)
+            .Select(r => r.PeakMemoryBytes / 1048576.0).ToList();
+        var discoveringMem = discovering.Values
+            .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.PeakMemoryBytes > 0)
+            .Select(r => r.PeakMemoryBytes / 1048576.0).ToList();
+        var solvingRi = solving.Values
+            .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.InferenceMetrics?.ActualRuleInstantiationCount > 0)
+            .Select(r => (double)r.InferenceMetrics.ActualRuleInstantiationCount).ToList();
+        var discoveringRi = discovering.Values
+            .Where(r => (r.HumanLikeAnswer?.IsAllSuccess ?? false) && r.InferenceMetrics?.ActualRuleInstantiationCount > 0)
+            .Select(r => (double)r.InferenceMetrics.ActualRuleInstantiationCount).ToList();
 
-        var discoverTime = DiscoveringResults.Select(r => r.Value.InferenceTime.TotalSeconds).ToList();
-        var (avgDiscTime, varDiscTime) = CalStats(discoverTime);
+        string[] Row(string name, List<double> data)
+        {
+            if (data.Count == 0) return new[] { name, "-", "-", "-" };
+            var (avg, variance) = CalStats(data);
+            return new[] { name, avg.ToString("F2"), variance.ToString("F2"), data.Max().ToString("F2") };
+        }
 
-        var headers = new[] { "Phase", "Average Time (s)", "Population Variance" };
+        var headers = new[] { "Metric", "Average", "Population Variance", "Peak" };
         var data = new List<string[]>
         {
-            new[] { "Solving", avgSolveTime.ToString("F2"), varSolveTime.ToString("F2") },
-            new[] { "Discovering", avgDiscTime.ToString("F2"), varDiscTime.ToString("F2") }
+            Row("Inference Wall-Clock Time (s) - Solving", solvingTime),
+            Row("Inference Wall-Clock Time (s) - Discovering", discoveringTime),
+            Row("Peak Memory (MB) - Solving", solvingMem),
+            Row("Peak Memory (MB) - Discovering", discoveringMem),
+            Row("Actual Rule Instantiations - Solving", solvingRi),
+            Row("Actual Rule Instantiations - Discovering", discoveringRi),
         };
 
-        return WriteThreeLineTable(ws, startRow, "Table 3: Average Time StatisticsTable", headers, data);
+        int nextRow = WriteThreeLineTable(ws, startRow, title, headers, data);
+
+        // fix2 脚注：Peak Memory / Actual Rule Instantiations 仅统计成功实例；Wall-Clock Time 为全部实例。
+        var footnote = ws.Cell(nextRow + 1, 1);
+        footnote.Value = "Note: Peak Memory and Actual Rule Instantiations are averaged over successfully solved instances only; Inference Wall-Clock Time is averaged over all instances.";
+        footnote.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        ws.Range(nextRow + 1, 1, nextRow + 1, headers.Length).Merge();
+
+        return nextRow + 2;
     }
 
-    private int GenerateCombinedCumulativeTimeTable(IXLWorksheet ws, int startRow)
+    private int GenerateCombinedCumulativeTimeTable(IXLWorksheet ws, int startRow, Dictionary<string, GeoInferenceResult> solving, string title)
     {
-        var solvingTimes = SolvingResults
-            .Select(r => r.Value.InferenceTime.TotalSeconds)
+        var solvingTimes = solving
+            .Select(r => r.Value.InferenceWallClockTime.TotalSeconds)
             .OrderBy(t => t).ToList();
 
         int solvingTotal = solvingTimes.Count;
 
-        var thresholds = new (string Label, double Seconds)[]
+        var thresholds = new (string Label, double Seconds, bool GreaterThan)[]
         {
-            ("< 1 s",   1),
-            ("< 10 s",  10),
-            ("< 30 s",  30),
-            ("< 60 s",  60),
-            ("< 120 s", 120)
+            ("< 1 s",   1,  false),
+            ("< 10 s",  10, false),
+            ("< 30 s",  30, false),
+            ("< 60 s",  60, false),
+            ("> 60 s",  60, true)
         };
 
         string[] headers = new string[] { "Metric" }
@@ -442,16 +662,16 @@ internal class IntegratedResultReporter
                 new string[] { "Count" }.Concat(thresholds.Select(_ => "0")).ToArray(),
                 new string[] { "Ratio" }.Concat(thresholds.Select(_ => "0%")).ToArray()
             };
-            return WriteThreeLineTable(ws, startRow, "Table: Cumulative Time Distribution", headers, data2);
+            return WriteThreeLineTable(ws, startRow, title, headers, data2);
         }
 
         var counts = new List<string>();
         var ratios = new List<string>();
 
-        foreach (var (_, seconds) in thresholds)
+        foreach (var (_, seconds, greaterThan) in thresholds)
         {
-            int count = seconds == double.MaxValue
-                ? solvingTotal
+            int count = greaterThan
+                ? solvingTotal - (BinarySearchUpperBound(solvingTimes, seconds) + 1)
                 : BinarySearchUpperBound(solvingTimes, seconds) + 1;
 
             double ratio = (double)count / solvingTotal;
@@ -466,19 +686,22 @@ internal class IntegratedResultReporter
             new string[] { "Ratio" }.Concat(ratios).ToArray()
         };
 
-        return WriteThreeLineTable(ws, startRow, "Table: Cumulative Time Distribution", headers, data);
+        return WriteThreeLineTable(ws, startRow, title, headers, data);
     }
 
     private int GenerateInferenceEfficiencyTable(IXLWorksheet ws, int startRow)
     {
+        if (DiscoveringResults.Count == 0) return startRow;
+
         var figComp = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.FigureCompressionRate));
         var relComp = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.RelationCompressionRate));
         var qvComp = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.EquationCompressionRate));
         var allComp = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.OverallKnowlegeCompressionRate));
 
-        var mergedRed = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.MaxMergedRulePairCompressionRate));
-        var semiRed = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.MaxSemiRulePairCompressionRate));
-        var overallRed = CalStats(DiscoveringResults.Select(d => d.Value.InferenceMetrics.MaxRulePairOverallCompressionRate));
+        var mriSource = SolvingResults.Count > 0 ? SolvingResults : DiscoveringResults;
+        var mergedRed = CalStats(mriSource.Select(d => d.Value.InferenceMetrics.MaxMergedRulePairCompressionRate));
+        var semiRed = CalStats(mriSource.Select(d => d.Value.InferenceMetrics.MaxSemiRulePairCompressionRate));
+        var overallRed = CalStats(mriSource.Select(d => d.Value.InferenceMetrics.MaxRulePairOverallCompressionRate));
 
         var headers = new[] { "Category", "Metric", "Mean", "Variance" };
 
@@ -494,12 +717,51 @@ internal class IntegratedResultReporter
             new[] { "", "Overall Factor", overallRed.Mean.ToString("F4"), overallRed.Variance.ToString("F4") }
         };
 
-        return WriteThreeLineTable(ws, startRow, "Table X: Knowledge Compression & Rule Pair Reduction", headers, data);
+        return WriteThreeLineTable(ws, startRow, "Table 5: Knowledge Compression & Rule Pair Reduction", headers, data);
     }
 
-    private int GenerateTop5InferenceEfficiencyTables(IXLWorksheet ws, int startRow)
+    private static Dictionary<string, string> _zhToEnPredicates;
+
+    // Map Chinese predicate aliases (e.g. "角") to English class names (e.g. "Angle")
+    private static string PredicateToEnglish(string name)
     {
-        var data = DiscoveringResults.ToList();
+        _zhToEnPredicates ??= ZhEn.ExtractKnowledgeAliases(typeof(GeoInferenceResult).Assembly)
+            .GroupBy(kv => kv.Value)
+            .ToDictionary(g => g.Key, g => g.First().Key);
+        return _zhToEnPredicates.TryGetValue(name, out var en) ? en : name;
+    }
+
+    // Short display names for the most frequent rules; unmapped rules keep their IDs
+    private static readonly Dictionary<string, string> RuleDisplayNames = new()
+    {
+        ["RuleCT001TriangleCongruenceSSS"] = "SSS Congruence",
+        ["RuleCT002TriangleCongruenceSAS"] = "SAS Congruence",
+        ["RuleCT003TriangleCongruenceASA"] = "ASA Congruence",
+        ["RuleCT004TriangleCongruenceAAS"] = "AAS Congruence",
+        ["RuleCT006TriangleSimilarityAA"] = "AA Similarity",
+        ["RuleCT007TriangleSimilaritySAS"] = "SAS Similarity",
+        ["RuleCT008TriangleSimilaritySSS"] = "SSS Similarity",
+        ["RuleAQ005AngleBisectorInference"] = "Angle Bisector",
+        ["RuleAQ007AlternateInteriorAnglesEqual"] = "Alt. Angles Eq.",
+        ["RuleAQ008ConsecutiveInteriorAnglesSupplementary"] = "Co-int. Suppl.",
+        ["RuleAQ009CorrespondingAnglesEqual"] = "Corr. Angles Eq.",
+        ["RuleDQ007ProportionalSegmentsOnTransversals"] = "Segment Ratio",
+        ["RuleGdl01ParallelJudgmentByCorrespondingAngles"] = "Corr. Angles Par.",
+        ["RuleGdl02ParallelJudgmentByAlternateInteriorAngles"] = "Alt. Angles Par.",
+        ["RuleGdl10CircularPowerTangentAndSecantAngle"] = "Tangent-Secant",
+        ["RuleTriH001OrthocenterDetermination"] = "Orthocenter",
+        ["RuleTriH004IncenterDetermination"] = "Incenter",
+    };
+
+    private static string RuleToDisplayName(string ruleId)
+        => RuleDisplayNames.TryGetValue(ruleId, out var display) ? display : ruleId;
+
+    private int GenerateTop5InferenceEfficiencyTables(IXLWorksheet ws, int startRow,
+        Dictionary<string, GeoInferenceResult> source, string stateLabel, int firstTableNo)
+    {
+        if (source.Count == 0) return startRow;
+
+        var data = source.ToList();
 
         var classicSemi = new Dictionary<string, ulong>();
         var semi = new Dictionary<string, ulong>();
@@ -531,7 +793,8 @@ internal class IntegratedResultReporter
         int WriteClassicDistributionTable(
             IXLWorksheet sheet, int currentRow,
             Dictionary<string, ulong> classicDict, Dictionary<string, ulong> targetDict,
-            string itemName, string tableName, string targetDisplayName, int topN)
+            string itemName, string tableName, string targetDisplayName, int topN,
+            Func<string, string> nameMap = null)
         {
             var sortedClassic = classicDict.OrderByDescending(kv => kv.Value).ToList();
             var itemsToProcess = topN > 0 ? sortedClassic.Take(topN) : sortedClassic;
@@ -547,7 +810,7 @@ internal class IntegratedResultReporter
 
                 dataRows.Add(new[] {
                     rank.ToString(),
-                    item.Key,
+                    nameMap?.Invoke(item.Key) ?? item.Key,
                     item.Value.ToString(),
                     targetVal.ToString(),
                     compressionRate.ToString("F2")
@@ -561,38 +824,53 @@ internal class IntegratedResultReporter
 
         startRow = WriteClassicDistributionTable(ws, startRow, classicSemi, semi,
             "Rule Pair",
-            "Table X: Top-5 Classic Semi Rule Pairs",
+            $"Table {firstTableNo}: Top-5 Classic Semi Rule Pairs ({stateLabel})",
             "Semi",
-            5);
+            5,
+            nameMap: RuleToDisplayName);
 
         startRow = WriteClassicDistributionTable(ws, startRow, classicMerged, merged,
             "Rule Pair",
-            "Table Y: Top-5 Classic Merged Rule Pairs",
+            $"Table {firstTableNo + 1}: Top-5 Classic Merged Rule Pairs ({stateLabel})",
             "Merged",
-            5);
+            5,
+            nameMap: RuleToDisplayName);
 
         startRow = WriteClassicDistributionTable(ws, startRow, classicPredicate, mergedPredicate,
             "Predicate",
-            "Table Z: Classic Predicates Distribution",
+            $"Table {firstTableNo + 2}: Top-5 Classic Predicates ({stateLabel})",
             "Merged",
-            5);
+            5,
+            nameMap: PredicateToEnglish);
 
         return startRow;
     }
 
-    private int GenerateAblationTable(IXLWorksheet ws, int startRow)
+    private int GenerateAblationTable(IXLWorksheet ws, int startRow,
+        Dictionary<string, GeoInferenceResult> solving,
+        Dictionary<string, GeoInferenceResult> noCompass,
+        Dictionary<string, GeoInferenceResult> noSimplify,
+        int totalProblems, string title)
     {
-        int solvingSuccessCount = SolvingResults.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
-        int withoutCompassSuccessCount = SolvingNoCompassMatrixResults.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
-        int noSimplifySuccessCount = SolvingNoSimplifyEqSymResults.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
+        if (solving.Count == 0 && noCompass.Count == 0 && noSimplify.Count == 0) return startRow;
 
-        double baselineSuccessRate = (double)solvingSuccessCount / Total;
-        double noCompassSuccessRate = (double)withoutCompassSuccessCount / Total;
-        double noSimplifySuccessRate = (double)noSimplifySuccessCount / Total;
+        int solvingSuccessCount = solving.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
+        int withoutCompassSuccessCount = noCompass.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
+        int noSimplifySuccessCount = noSimplify.Count(r => r.Value.HumanLikeAnswer.IsAllSuccess);
 
-        var withCompassDurations = SolvingResults.Select(r => r.Value.InferenceMetrics.TotalDuration).ToList();
-        var withoutCompassDurations = SolvingNoCompassMatrixResults.Select(r => r.Value.InferenceMetrics.TotalDuration).ToList();
-        var noSimplifyDurations = SolvingNoSimplifyEqSymResults.Select(r => r.Value.InferenceMetrics.TotalDuration).ToList();
+        if (totalProblems <= 0) return startRow;
+
+        double baselineSuccessRate = (double)solvingSuccessCount / totalProblems;
+        double noCompassSuccessRate = (double)withoutCompassSuccessCount / totalProblems;
+        double noSimplifySuccessRate = (double)noSimplifySuccessCount / totalProblems;
+
+        var withCompassDurations = solving.Select(r => r.Value.InferenceMetrics.TotalDuration).ToList();
+        var withoutCompassDurations = noCompass.Select(r => r.Value.InferenceMetrics.TotalDuration).ToList();
+        // w/o Simplify Eq Sym 的时间统计仅考虑成功解出的题目，避免未解题目的耗时污染平均值。
+        var noSimplifyDurations = noSimplify
+            .Where(r => r.Value.HumanLikeAnswer.IsAllSuccess)
+            .Select(r => r.Value.InferenceMetrics.TotalDuration)
+            .ToList();
 
         double avgFull = withCompassDurations.Any() ? withCompassDurations.Average() : 0;
         double medFull = withCompassDurations.Any() ? GetMedian(withCompassDurations.OrderBy(t => t).ToList()) : 0;
@@ -643,7 +921,7 @@ internal class IntegratedResultReporter
             }
         };
 
-        return WriteThreeLineTable(ws, startRow, "Table N: Ablation Study on Success Rate and Efficiency", headers, data);
+        return WriteThreeLineTable(ws, startRow, title, headers, data);
     }
 
     private static double GetMedian(List<double> sortedValues)
@@ -799,9 +1077,9 @@ internal class IntegratedResultReporter
         GenerateLogGroupedBarChart(groupedByParamsCount2);
     }
 
-    public Plot SemiRulePairCountCompare()
+    public Plot SemiRulePairCountCompare(Dictionary<string, GeoInferenceResult> source)
     {
-        var data = DiscoveringResults.ToList();
+        var data = source.ToList();
         Dictionary<string, ulong> ClassicSemiRulePairDistribution = [];
         Dictionary<string, ulong> SemiRulePairDistribution = [];
 
@@ -828,16 +1106,18 @@ internal class IntegratedResultReporter
         var b = new Dictionary<string, ulong>();
         foreach (var item in sortedClassic.Take(5))
         {
-            a.Add(item.Key, item.Value);
+            // Use short display names on the chart's x axis
+            string display = RuleToDisplayName(item.Key);
+            a[display] = item.Value;
             SemiRulePairDistribution.TryGetValue(item.Key, out ulong semiVal);
-            b.Add(item.Key, semiVal);
+            b[display] = semiVal;
         }
         return Bar(a, b);
     }
 
-    public Plot MergedRulePairCountCompare()
+    public Plot MergedRulePairCountCompare(Dictionary<string, GeoInferenceResult> source)
     {
-        var data = DiscoveringResults.ToList();
+        var data = source.ToList();
         Dictionary<string, ulong> ClassicRulePairDistribution = [];
         Dictionary<string, ulong> MergedRulePairDistribution = [];
 
@@ -864,16 +1144,18 @@ internal class IntegratedResultReporter
         var b = new Dictionary<string, ulong>();
         foreach (var item in sortedClassic.Take(5))
         {
-            a.Add(item.Key, item.Value);
+            // Use short display names on the chart's x axis
+            string display = RuleToDisplayName(item.Key);
+            a[display] = item.Value;
             MergedRulePairDistribution.TryGetValue(item.Key, out ulong mergedVal);
-            b.Add(item.Key, mergedVal);
+            b[display] = mergedVal;
         }
         return Bar(a, b);
     }
 
-    public Plot PreidcateCountCompare()
+    public Plot PreidcateCountCompare(Dictionary<string, GeoInferenceResult> source)
     {
-        var data = DiscoveringResults.ToList();
+        var data = source.ToList();
         Dictionary<string, ulong> ClassicPredicateDistribution = [];
         Dictionary<string, ulong> MergedPredicateDistribution = [];
 
@@ -900,34 +1182,58 @@ internal class IntegratedResultReporter
         var b = new Dictionary<string, ulong>();
         foreach (var item in sortedClassic.Take(5))
         {
-            a.Add(item.Key, item.Value);
+            // Use English predicate names on the chart's x axis
+            string enName = PredicateToEnglish(item.Key);
+            a[enName] = item.Value;
             MergedPredicateDistribution.TryGetValue(item.Key, out ulong mergedVal);
-            b.Add(item.Key, mergedVal);
+            b[enName] = mergedVal;
         }
 
         return Bar(a, b);
     }
 
-    public void CompressionRate()
+    /// <summary>
+    /// </summary>
+    public Plot CompressionRate() => CompressionRate(DiscoveringResults, nameof(CompressionRate));
+
+    /// <summary>
+    /// </summary>
+    public Plot SolvingCompressionRate() => CompressionRate(SolvingResults, nameof(SolvingCompressionRate));
+
+    internal static readonly string[] CompressionRateGroupNames =
+        { "Figure", "Relation", "Global Pred", "Merged MRI", "Semi MRI", "Global MRI" };
+
+    // Grouped palette: cool blues for knowledge/object level (Figure/Relation/Global Pred),
+    // same-hue warm oranges with different depth for the MRI variants (Merged/Semi/Global MRI)
+    internal static readonly Color[] CompressionRateGroupedColors =
     {
-        var data = new List<List<double>>();
-        var figComp = DiscoveringResults.Select(d => d.Value.InferenceMetrics.FigureCompressionRate).ToList();
-        var relComp = DiscoveringResults.Select(d => d.Value.InferenceMetrics.RelationCompressionRate).ToList();
-        var allComp = DiscoveringResults.Select(d => d.Value.InferenceMetrics.OverallKnowlegeCompressionRate).ToList();
+        Color.FromHex("#9DC3E6"),
+        Color.FromHex("#4E79A7"),
+        Color.FromHex("#1F3B5C"),
+        Color.FromHex("#F4B183"),
+        Color.FromHex("#ED7D31"),
+        Color.FromHex("#C55A11")
+    };
 
-        var mergedRed = DiscoveringResults.Select(d => d.Value.InferenceMetrics.MaxMergedRulePairCompressionRate).ToList();
-        var semiRed = DiscoveringResults.Select(d => d.Value.InferenceMetrics.MaxSemiRulePairCompressionRate).ToList();
-        var overallRed = DiscoveringResults.Select(d => d.Value.InferenceMetrics.MaxRulePairOverallCompressionRate).ToList();
+    private static List<List<double>> GetCompressionRateData(Dictionary<string, GeoInferenceResult> source)
+    {
+        return new List<List<double>>
+        {
+            source.Select(d => d.Value.InferenceMetrics.FigureCompressionRate).ToList(),
+            source.Select(d => d.Value.InferenceMetrics.RelationCompressionRate).ToList(),
+            source.Select(d => d.Value.InferenceMetrics.OverallKnowlegeCompressionRate).ToList(),
+            source.Select(d => d.Value.InferenceMetrics.MaxMergedRulePairCompressionRate).ToList(),
+            source.Select(d => d.Value.InferenceMetrics.MaxSemiRulePairCompressionRate).ToList(),
+            source.Select(d => d.Value.InferenceMetrics.MaxRulePairOverallCompressionRate).ToList()
+        };
+    }
 
-        data.Add(figComp);
-        data.Add(relComp);
-        data.Add(allComp);
-        data.Add(mergedRed);
-        data.Add(semiRed);
-        data.Add(overallRed);
+    private Plot CompressionRate(Dictionary<string, GeoInferenceResult> source, string title)
+    {
+        var data = GetCompressionRateData(source);
+        string[] groupNames = CompressionRateGroupNames;
 
-        string[] groupNames = { "Figure", "Relation", "Global Pred", "Merged MRI", "Semi MRI", "Global MRI" };
-        Plot plot = DrawBoxViolinMean(data, groupNames);
+        Plot plot = DrawBoxViolinMean(data, groupNames, CompressionRateGroupedColors);
         PrintStatisticalSummary(data, groupNames);
 
         plot.Axes.Left.TickLabelStyle.FontSize = 60;
@@ -936,7 +1242,65 @@ internal class IntegratedResultReporter
         plot.Axes.Bottom.Label.FontSize = 60;
         plot.Axes.Left.Label.Text = "Compression Rate";
         plot.Axes.Bottom.Label.Text = "Category";
-        SavePlot(plot);
+        SavePlot(plot, title);
+        return plot;
+    }
+
+    /// <summary>
+    /// </summary>
+    public void GenerateCombinedCompressionRateChart(IReadOnlyList<(string Level, Plot Plot)> levelPlots, string fileName, int columns = 3)
+    {
+        if (levelPlots == null || levelPlots.Count == 0) return;
+
+        ScottPlot.Multiplot multiplot = new();
+        multiplot.Subplots.RemoveAt(0);
+
+        char labelChar = 'a';
+        int index = 0;
+        foreach (var (level, plot) in levelPlots)
+        {
+            plot.Axes.Left.TickLabelStyle.FontSize = 50;
+            plot.Axes.Bottom.TickLabelStyle.FontSize = 50;
+            plot.Axes.Left.Label.FontSize = 54;
+
+            // Tighten the spacing between subplots: remove the minimum axis sizes and
+            // the outer label padding so adjacent subplots sit closer together.
+            plot.Axes.Left.MinimumSize = 0;
+            plot.Axes.Right.MinimumSize = 0;
+            plot.Axes.Bottom.MinimumSize = 0;
+            plot.Axes.Top.MinimumSize = 0;
+            ((ScottPlot.AxisPanels.AxisBase)plot.Axes.Left).PaddingOutsideAxisLabels = new ScottPlot.PixelPadding(0);
+            ((ScottPlot.AxisPanels.AxisBase)plot.Axes.Right).PaddingOutsideAxisLabels = new ScottPlot.PixelPadding(0);
+            ((ScottPlot.AxisPanels.AxisBase)plot.Axes.Bottom).PaddingOutsideAxisLabels = new ScottPlot.PixelPadding(0);
+            ((ScottPlot.AxisPanels.AxisBase)plot.Axes.Top).PaddingOutsideAxisLabels = new ScottPlot.PixelPadding(0);
+
+            // Only the left-column subplots keep the y-axis tick labels and "Compression Rate" label
+            if (index % columns != 0)
+            {
+                plot.Axes.Left.TickLabelStyle.IsVisible = false;
+                plot.Axes.Left.Label.Text = string.Empty;
+            }
+
+            plot.Axes.Bottom.Label.Text = $"({labelChar}) {level}";
+            plot.Axes.Bottom.Label.FontSize = 56;
+            plot.Axes.Bottom.Label.Bold = true;
+            plot.Axes.Bottom.Label.ForeColor = ScottPlot.Colors.Black;
+
+            multiplot.AddPlot(plot);
+            labelChar++;
+            index++;
+        }
+
+        int count = levelPlots.Count;
+        int rows = (int)Math.Ceiling((double)count / columns);
+        multiplot.Layout = new ScottPlot.MultiplotLayouts.Grid(rows, columns);
+
+        int width = 1700 * columns;
+        int height = 1300 * rows;
+        string path = Path.Combine(ReportDir, $"{fileName}.png");
+        Directory.CreateDirectory(ReportDir);
+        multiplot.SavePng(path, width, height);
+        Console.WriteLine($"Plot Saved: {path}");
     }
 
     #endregion
@@ -1205,229 +1569,21 @@ internal class IntegratedResultReporter
 
         return plot;
     }
-    //public Plot GenerateLogGroupedBarChart(
-    //Dictionary<string, List<(string name, ulong count)>> groupedData,
-    //[CallerMemberName] string title = "",
-    //bool useGroupPalette = false)   // true = Mathematica default BarChart style: single solid color per group
-    //{
-    //    Plot plot = new();
-
-    //    double GetLogValue(ulong v) => v == 0 ? 0 : Math.Log10((double)v);
-
-    //    var allBars = new List<Bar>();
-
-    //    /* ====== Mathematica journal style: ColorData[97] default palette ======
-    //     * #5E81B5 Blue ( 94,129,181)  -- low value
-    //     * #8FB032 Green (143,176, 50)
-    //     * #E19C24 Orange (225,156, 36)
-    //     * #EB6235 Red (235, 98, 53)  -- high value
-    //     * Discrete palette backup: #8778B3 Purple, #C56E1A Brown, #5D9EC8 Light blue        */
-    //    ScottPlot.Color[] mmaPalette =
-    //    {
-    //    ScottPlot.Color.FromHex("#5E81B5"),
-    //    ScottPlot.Color.FromHex("#E19C24"),
-    //    ScottPlot.Color.FromHex("#8FB032"),
-    //    ScottPlot.Color.FromHex("#EB6235"),
-    //    ScottPlot.Color.FromHex("#8778B3"),
-    //    ScottPlot.Color.FromHex("#C56E1A"),
-    //    ScottPlot.Color.FromHex("#5D9EC8"),
-    //};
-
-    //    ScottPlot.Color GetSciQuadColor(double ratio, double[] thresholds = null)
-    //    {
-    //        ratio = Math.Max(0.0, Math.Min(1.0, ratio));
-
-    //        // Gradient color anchor points: Mathematica ColorData[97] hues (blue -> green -> orange -> red)
-    //        var c0 = (r: 94, g: 129, b: 181); // #5E81B5
-    //        var c1 = (r: 143, g: 176, b: 50);  // #8FB032
-    //        var c2 = (r: 225, g: 156, b: 36);  // #E19C24
-    //        var c3 = (r: 235, g: 98, b: 53);  // #EB6235
-
-    //        double[] stops;
-
-    //        if (thresholds == null)
-    //        {
-    //            stops = new double[] { 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0 };
-    //        }
-    //        else if (thresholds.Length == 3)
-    //        {
-    //            double sum = thresholds[0] + thresholds[1] + thresholds[2];
-    //            stops = new double[] {
-    //            0.0,
-    //            thresholds[0] / sum,
-    //            (thresholds[0] + thresholds[1]) / sum,
-    //            1.0
-    //        };
-    //        }
-    //        else if (thresholds.Length == 4)
-    //        {
-    //            stops = (double[])thresholds.Clone();
-    //        }
-    //        else
-    //        {
-    //            stops = new double[] { 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0 };
-    //        }
-
-    //        stops[0] = 0.0;
-    //        stops[3] = 1.0;
-    //        if (stops[1] <= stops[0]) stops[1] = stops[0] + 0.001;
-    //        if (stops[2] <= stops[1]) stops[2] = stops[1] + 0.001;
-    //        if (stops[2] >= stops[3]) stops[2] = stops[3] - 0.001;
-    //        if (stops[1] >= stops[2]) stops[1] = stops[2] - 0.001;
-
-    //        int r = 0, g = 0, b = 0;
-
-    //        if (ratio <= stops[1])
-    //        {
-    //            double t = (ratio - stops[0]) / (stops[1] - stops[0]);
-    //            r = (int)(c0.r + (c1.r - c0.r) * t);
-    //            g = (int)(c0.g + (c1.g - c0.g) * t);
-    //            b = (int)(c0.b + (c1.b - c0.b) * t);
-    //        }
-    //        else if (ratio <= stops[2])
-    //        {
-    //            double t = (ratio - stops[1]) / (stops[2] - stops[1]);
-    //            r = (int)(c1.r + (c2.r - c1.r) * t);
-    //            g = (int)(c1.g + (c2.g - c1.g) * t);
-    //            b = (int)(c1.b + (c2.b - c1.b) * t);
-    //        }
-    //        else
-    //        {
-    //            double t = (ratio - stops[2]) / (stops[3] - stops[2]);
-    //            r = (int)(c2.r + (c3.r - c2.r) * t);
-    //            g = (int)(c2.g + (c3.g - c2.g) * t);
-    //            b = (int)(c2.b + (c3.b - c2.b) * t);
-    //        }
-
-    //        return ScottPlot.Color.FromHex($"#{r:X2}{g:X2}{b:X2}");
-    //    }
-
-    //    double maxLogValue = 0;
-    //    foreach (var group in groupedData)
-    //        foreach (var item in group.Value)
-    //        {
-    //            double val = GetLogValue(item.count);
-    //            if (val > maxLogValue) maxLogValue = val;
-    //        }
-
-    //    double fixedBarWidth = 0.8;
-    //    double groupGap = 0.6;
-
-    //    double currentX = 0;
-    //    List<double> tickPositions = new List<double>();
-    //    List<string> tickLabels = new List<string>();
-    //    int groupIndex = 0;
-
-    //    foreach (var group in groupedData)
-    //    {
-    //        var items = group.Value;
-    //        int itemCount = items.Count;
-    //        if (itemCount == 0) continue;
-
-    //        double groupStartX = currentX;
-    //        ScottPlot.Color groupColor = mmaPalette[groupIndex++ % mmaPalette.Length];
-
-    //        for (int j = 0; j < itemCount; j++)
-    //        {
-    //            double position = currentX + (j + 0.5) * fixedBarWidth;
-    //            double logVal = GetLogValue(items[j].count);
 
     //            double ratio = maxLogValue > 0 ? logVal / maxLogValue : 0;
     //            ScottPlot.Color barColor = useGroupPalette
     //                ? groupColor   // Mathematica default BarChart: same color for the whole group
     //                : GetSciQuadColor(ratio, thresholds: new double[] { 0.4, 0.3, 0.3 });
 
-    //            allBars.Add(new Bar()
-    //            {
-    //                Position = position,
-    //                Value = logVal,
-    //                FillColor = barColor,
-    //                LineWidth = 1.0f,
-    //                LineColor = ScottPlot.Colors.White, // thin white outline to simulate the gap between bars in Mathematica
-    //                Size = fixedBarWidth * 0.95,
-    //            });
-    //        }
-
-    //        double groupCenterX = groupStartX + (itemCount * fixedBarWidth) / 2.0;
-    //        tickPositions.Add(groupCenterX);
-    //        tickLabels.Add(group.Key);
-
-    //        currentX += itemCount * fixedBarWidth + groupGap;
-    //    }
-
-    //    plot.Add.Bars(allBars.ToArray());
-
     //    plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericManual(
     //        tickPositions.ToArray(),
     //        tickLabels.ToArray()
     //    );
 
-    //    plot.Axes.Bottom.Min = -groupGap / 2;
-    //    plot.Axes.Bottom.Max = currentX - groupGap / 2;
-
-    //    plot.Axes.Bottom.TickLabelStyle.Rotation = 0;
-    //    plot.Axes.Bottom.TickLabelStyle.FontSize = 40;
-    //    plot.Axes.Bottom.TickLabelStyle.Alignment = Alignment.MiddleRight;
-    //    plot.Axes.Bottom.Label.FontSize = 40;
-    //    plot.Axes.Bottom.Label.Text = "Params Count";
-
-    //    int maxLogInt = (int)Math.Ceiling(maxLogValue);
-    //    if (maxLogInt < 0) maxLogInt = 0;
-
-    //    List<double> yTickPositions = new List<double>();
-    //    List<string> yTickLabels = new List<string>();
-
-    //    string GetSuperscript(int n)
-    //    {
-    //        string s = n.ToString();
-    //        char[] superscripts = { '\u2070', '\u00B9', '\u00B2', '\u00B3', '\u2074', '\u2075', '\u2076', '\u2077', '\u2078', '\u2079' };
-    //        return new string(s.Select(c => superscripts[c - '0']).ToArray());
-    //    }
-
-    //    for (int i = 0; i <= maxLogInt; i++)
-    //    {
-    //        yTickPositions.Add(i);
-    //        yTickLabels.Add($"10{GetSuperscript(i)}");
-    //    }
-
-    //    if (yTickPositions.Count == 0)
-    //    {
-    //        yTickPositions.Add(0);
-    //        yTickLabels.Add("10⁰");
-    //    }
-
     //    plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericManual(
     //        yTickPositions.ToArray(),
     //        yTickLabels.ToArray()
     //    );
-
-    //    plot.Axes.Left.Min = 0;
-    //    plot.Axes.Left.Max = maxLogInt + 0.5;
-    //    plot.Axes.Left.Label.Text = "Maximum Rule Instantiations(Log Scale)";
-    //    plot.Axes.Left.TickLabelStyle.FontSize = 40;
-    //    plot.Axes.Left.Label.FontSize = 40;
-
-    //    /* ====== Mathematica journal style: white background, black axes, light gray grid ====== */
-    //    plot.FigureBackground.Color = ScottPlot.Colors.White;
-    //    plot.DataBackground.Color = ScottPlot.Colors.White;
-    //    plot.Grid.MajorLineColor = ScottPlot.Color.FromHex("#DBDBDB");
-    //    plot.Grid.MajorLineWidth = 1;
-
-    //    // Fix: explicitly specify the common base interface IAxis to avoid IXAxis / IYAxis array type inference failure
-    //    foreach (var ax in new ScottPlot.IAxis[] { plot.Axes.Bottom, plot.Axes.Left })
-    //    {
-    //        ax.FrameLineStyle.Color = ScottPlot.Colors.Black;
-    //        ax.MajorTickStyle.Color = ScottPlot.Colors.Black;
-    //        ax.TickLabelStyle.ForeColor = ScottPlot.Colors.Black;
-    //        ax.Label.ForeColor = ScottPlot.Colors.Black;
-    //    }
-
-    //    plot.Title(title);
-    //    plot.Axes.Title.Label.FontSize = 0;
-
-    //    SavePlot(plot, title + "_Log");
-    //    return plot;
-    //}
 
     /* ====== viridis: perceptually uniform and colorblind-safe (Mathematica ColorData["Viridis"]) ====== */
     ScottPlot.Color GetViridisColor(double ratio)
@@ -1585,13 +1741,13 @@ internal class IntegratedResultReporter
         plt.Grid.MajorLineColor = Colors.Gray.WithOpacity(0.2);
         plt.Grid.MinorLineColor = Colors.Gray.WithOpacity(0.1);
 
-        string path = Path.Combine(ReportDir, $"{title}.png");
-        Directory.CreateDirectory(ReportDir);
+        string path = Path.Combine(CurrentOutputDir, $"{title}.png");
+        Directory.CreateDirectory(CurrentOutputDir);
         plt.SavePng(path, 2400, height: 1600);
         Console.WriteLine($"Plot Saved: {path}");
     }
 
-    public void Top5CompressionRate(IEnumerable<Plot> plots, int columns = 3)
+    public void Top5CompressionRate(IEnumerable<Plot> plots, int columns = 3, string name = null)
     {
         ScottPlot.Multiplot multiplot = new();
         multiplot.Subplots.RemoveAt(0);
@@ -1616,8 +1772,9 @@ internal class IntegratedResultReporter
         // Render each subplot at 1800x1440 (height +20% over the 3:2 base) for higher clarity
         int width = 1800 * columns;
         int height = 1440 * rows;
-        string path = Path.Combine(ReportDir, $"CompassionAndReduction.png");
-        Directory.CreateDirectory(ReportDir);
+        string path = Path.Combine(CurrentOutputDir,
+            string.IsNullOrEmpty(name) ? "CompassionAndReduction.png" : $"CompassionAndReduction_{name}.png");
+        Directory.CreateDirectory(CurrentOutputDir);
 
         multiplot.SavePng(path, width, height: height);
     }
@@ -1886,10 +2043,10 @@ internal class IntegratedResultReporter
 
     public static (double Mean, double Variance) CalStats(IEnumerable<double> data, bool isSample = false)
     {
-        if (data == null || data.Count() == 0)
-            throw new ArgumentException("Data list cannot be empty.");
+        if (data == null || !data.Any())
+            return (0, 0);
         if (isSample && data.Count() < 2)
-            throw new ArgumentException("Calculating sample variance requires at least 2 data points.");
+            return (0, 0);
 
         double sum = 0;
         foreach (var x in data) sum += x;

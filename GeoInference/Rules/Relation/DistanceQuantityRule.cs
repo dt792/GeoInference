@@ -134,16 +134,16 @@ public class DistanceQuantityRule : RuleClass
                         var pa = GetSegment(point, e1);
                         var pb = GetSegment(point, e2);
 
-                        CondictionalKnowledge c1 = new() { Knowledge = new QuantityRatio(oa.Length, ob.Length) };
-                        c1.AddCondiction(new LinePerpendicular(edge1, line1), new LinePerpendicular(edge2, line2));
+                        ConditionalKnowledge c1 = new() { Knowledge = new QuantityRatio(oa.Length, ob.Length) };
+                        c1.AddCondition(new LinePerpendicular(edge1, line1), new LinePerpendicular(edge2, line2));
                         c1.Knowledge.AddReason();
                         c1.Knowledge.AddCondition(bisectorLine);
-                        updater.AddCondictionalKnowledgePair(c1);
-                        CondictionalKnowledge c2 = new() { Knowledge = new QuantityRatio(pa.Length, pb.Length) };
-                        c2.AddCondiction(new LinePerpendicular(edge1, line1), new LinePerpendicular(edge2, line2));
+                        updater.AddConditionalKnowledgePair(c1);
+                        ConditionalKnowledge c2 = new() { Knowledge = new QuantityRatio(pa.Length, pb.Length) };
+                        c2.AddCondition(new LinePerpendicular(edge1, line1), new LinePerpendicular(edge2, line2));
                         c2.Knowledge.AddReason();
                         c2.Knowledge.AddCondition(bisectorLine);
-                        updater.AddCondictionalKnowledgePair(c2);
+                        updater.AddConditionalKnowledgePair(c2);
                     }
                 }
             }
@@ -153,7 +153,7 @@ public class DistanceQuantityRule : RuleClass
     [Alias("平行线分线段成比例定理")]
     public void RuleDQ007ProportionalSegmentsOnTransversals(LineParallel paralle1, LineParallel paralle2, Line line1, Line line2)
     {
-        if (paralle1 == paralle2) return;
+        if (paralle1 == paralle2||line1==line2) return;
         var (cc, nc1, nc2) = FindCommon(paralle1, paralle2);
         if (cc is null) return;
         var a = FindCIntersection(cc, line1);
@@ -170,6 +170,7 @@ public class DistanceQuantityRule : RuleClass
         var deS = GetSegment(d, e);
         var efS = GetSegment(e, f);
         var fdS = GetSegment(f, d);
+        if (abS is null || bcS is null || caS is null || deS is null || efS is null || fdS is null) return;
         var pred1 = new ProductionEquation(1, [(abS.Length, 1), (efS.Length, 1), (deS.Length, -1), (bcS.Length, -1)]);
         pred1.AddReason();
         pred1.AddCondition(paralle1, paralle2);

@@ -28,6 +28,8 @@ public class AngleQuantityRule : RuleClass
         var v = angle.Vertex;
         var ePoint1 = angle.Edge1.First();
         var ePoint2 = angle.Edge2.First();
+        if (angle.Vertex == point || angle.Edge1.Contains(point) || angle.Edge2.Contains(point))
+            return;
         ExprVector oA = new ExprVector(ePoint1.X - v.X, ePoint1.Y - v.Y, ePoint1.Z - v.Z);
         ExprVector oB = new ExprVector(ePoint2.X - v.X, ePoint2.Y - v.Y, ePoint2.Z - v.Z);
         ExprVector oP = new ExprVector(point.X - v.X, point.Y - v.Y, point.Z - v.Z);
@@ -69,27 +71,16 @@ public class AngleQuantityRule : RuleClass
         }
     }
 
-    [Alias("周角")]
-    public void RuleAQ004CircularAngle(Point center, Point p1, Point p2, Point p3)
-    {
-        return;
-    }
-
     [Alias("角平分线的判定")]
     public void RuleAQ005AngleBisectorInference(Angle angle, Point point, AngleSizeEqual angleSizeEqual)
     {
         var v = angle.Vertex;
         var ePoint1 = angle.Edge1.First();
         var ePoint2 = angle.Edge2.First();
-        ExprVector oA = new ExprVector(ePoint1.X - v.X, ePoint1.Y - v.Y, ePoint1.Z - v.Z);
-        ExprVector oB = new ExprVector(ePoint2.X - v.X, ePoint2.Y - v.Y, ePoint2.Z - v.Z);
-        ExprVector oP = new ExprVector(point.X - v.X, point.Y - v.Y, point.Z - v.Z);
-        var cross1 = oA.X * oB.Y - oA.Y * oB.X;
-        var cross2 = oA.X * oP.Y - oA.Y * oP.X;
-        var cross3 = oB.X * oP.Y - oB.Y * oP.X;
         var a1 = GetAngle(point, v, ePoint1);
         var a2 = GetAngle(point, v, ePoint2);
         if (a1 is null || a2 is null) return;
+        if (!IsBetweenAngle(v, ePoint1, ePoint2, point)) return;
         if (a1 == angleSizeEqual.Angle1 && a2 == angleSizeEqual.Angle2 || a1 == angleSizeEqual.Angle2 && a2 == angleSizeEqual.Angle1)
         {
             var l = GetLine(angle.Vertex, point);
@@ -108,6 +99,7 @@ public class AngleQuantityRule : RuleClass
             if (bisectorLine.Angle.Vertex == item) continue;
             var sub1 = GetAngle(bisectorLine.Angle.Edge1[0], bisectorLine.Angle.Vertex, item);
             var sub2 = GetAngle(bisectorLine.Angle.Edge2[0], bisectorLine.Angle.Vertex, item);
+            if (sub1 is null || sub2 is null) continue;
             var pred = new QuantityRatio(sub1.Size, sub2.Size);
             pred.AddReason();
             pred.AddCondition(bisectorLine);
@@ -272,7 +264,7 @@ public class AngleQuantityRule : RuleClass
     }
 
     [Alias("圆内接四边形的对角互补")]
-    public void RuleAQ011CyclicQuadrilateralOppositeAnglesSupplementary(Quadriliateral quad, Circle circle)
+    public void RuleAQ011CyclicQuadrilateralOppositeAnglesSupplementary(Quadrilateral quad, Circle circle)
     {
         if (quad.Properties.TrueForAll(circle.Properties.Skip(1).Contains))
         {

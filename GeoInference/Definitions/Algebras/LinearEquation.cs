@@ -13,7 +13,7 @@ public class LinearEquation : Equation
         CoExpr = ToString();
     }
 
-    public void SetHashCode()
+    public override void SetHashCode()
     {
         HashCode = (ulong)ToString().GetHashCode();
     }

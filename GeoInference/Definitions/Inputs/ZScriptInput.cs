@@ -48,12 +48,8 @@ public class ZScriptInput
     public const string PointsDef = "Points:";
     public const string LinesDef = "Lines:";
     public const string AuxDef = "+";
-    public const string DisproveDef = "Disprove:";
     public const string ProveDef = "Prove:";
     public const string SolveDef = "Solve:";
-    public const string DetermineDef = "Determine:";
-    public const string MinDef = "Min:";
-    public const string MaxDef = "Max:";
     public const string Value = "value";
     #endregion
 }

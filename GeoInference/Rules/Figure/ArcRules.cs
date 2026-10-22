@@ -1,7 +1,4 @@
 ﻿
-
-
-
 [RuleType(RuleType.Tradition)]
 public class ArcRules : RuleClass
 {
@@ -18,7 +15,7 @@ public class ArcRules : RuleClass
                 updater.Add(pred1);
 
                 var s1 = GetSegment(circle.Center, circle[i]);
-                var s2 = GetSegment(circle.Center, circle[i]);
+                var s2 = GetSegment(circle.Center, circle[j]);
                 if (s1 is not null && s2 is not null)
                 {
                     Sector pred2 = new Sector(circle.Center, (Point)circle[i], (Point)circle[j]);
@@ -44,128 +41,51 @@ public class ArcRules : RuleClass
             var p2 = (Point)combo[1];
             var p3 = (Point)combo[2];
 
-            if (HasColine(p1, p2, circle.Center))
+            void TryAddArcSum(Point a, Point b, Point mid)
             {
-                var whole = GetArc(circle.Center, p1, p2);
-                var s1 = GetArc(circle.Center, p1, p3);
-                var s2 = GetArc(circle.Center, p3, p2);
-                if (whole is null || s1 is null || s2 is null) continue;
+                var whole = GetArc(circle.Center, a, b);
+                var s1 = GetArc(circle.Center, a, mid);
+                var s2 = GetArc(circle.Center, mid, b);
+                if (whole is null || s1 is null || s2 is null) return;
                 var pred = new LinearEquation(
-                    new(){ { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } },0);
+                    new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
                 pred.AddReason();
                 pred.AddCondition(circle);
                 updater.Add(pred);
             }
+
+            if (HasColine(p1, p2, circle.Center))
+            {
+                TryAddArcSum(p1, p2, p3);
+            }
             else
             {
-                bool b = (bool)IsOnMinorArc((circle.Center.X, circle.Center.Y), (p1.X, p1.Y), (p2.X, p2.Y), (p3.X, p3.Y));
-                if (b)
-                {
-                    var whole = GetArc(circle.Center, p1, p2);
-                    var s1 = GetArc(circle.Center, p1, p3);
-                    var s2 = GetArc(circle.Center, p3, p2);
-                    if (whole is null || s1 is null || s2 is null) continue;
-                    var pred = new LinearEquation(
-                   new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                    pred.AddReason();
-                    pred.AddCondition(circle);
-                    updater.Add(pred);
-                }
-                b = (bool)IsOnMinorArc((circle.Center.X, circle.Center.Y), (p2.X, p2.Y), (p1.X, p1.Y), (p3.X, p3.Y));
-                if (b)
-                {
-                    var whole = GetArc(circle.Center, p1, p2);
-                    var s1 = GetArc(circle.Center, p1, p3);
-                    var s2 = GetArc(circle.Center, p3, p2);
-                    if (whole is null || s1 is null || s2 is null) continue;
-                    var pred = new LinearEquation(
-                   new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                    pred.AddReason();
-                    pred.AddCondition(circle);
-                    updater.Add(pred);
-                }
+                if (IsOnMinorArc(circle.Center, p1, p2, p3))
+                    TryAddArcSum(p1, p2, p3);
+                if (IsOnMinorArc(circle.Center, p2, p1, p3))
+                    TryAddArcSum(p1, p2, p3);
             }
             if (HasColine(p1, p3, circle.Center))
             {
-                var whole = GetArc(circle.Center, p1, p3);
-                var s1 = GetArc(circle.Center, p1, p2);
-                var s2 = GetArc(circle.Center, p2, p3);
-                if (whole is null || s1 is null || s2 is null) continue;
-                var pred = new LinearEquation(
-                   new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                pred.AddReason();
-                pred.AddCondition(circle);
-                updater.Add(pred);
+                TryAddArcSum(p1, p3, p2);
             }
             else
             {
-                bool b = (bool)IsOnMinorArc((circle.Center.X, circle.Center.Y), (p1.X, p1.Y), (p3.X, p3.Y), (p2.X, p2.Y));
-                if (b)
-                {
-                    var whole = GetArc(circle.Center, p1, p3);
-                    var s1 = GetArc(circle.Center, p1, p2);
-                    var s2 = GetArc(circle.Center, p2, p3);
-                    if (whole is null || s1 is null || s2 is null) continue;
-                    var pred = new LinearEquation(
-                        new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                    pred.AddReason();
-                    pred.AddCondition(circle);
-                    updater.Add(pred);
-                }
-                b = (bool)IsOnMinorArc((circle.Center.X, circle.Center.Y), (p3.X, p3.Y), (p1.X, p1.Y), (p2.X, p2.Y));
-                if (b)
-                {
-                    var whole = GetArc(circle.Center, p1, p3);
-                    var s1 = GetArc(circle.Center, p1, p2);
-                    var s2 = GetArc(circle.Center, p2, p3);
-                    if (whole is null || s1 is null || s2 is null) continue;
-                    var pred = new LinearEquation(
-                        new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                    pred.AddReason();
-                    pred.AddCondition(circle);
-                    updater.Add(pred);
-                }
+                if (IsOnMinorArc(circle.Center, p1, p3, p2))
+                    TryAddArcSum(p1, p3, p2);
+                if (IsOnMinorArc(circle.Center, p3, p1, p2))
+                    TryAddArcSum(p1, p3, p2);
             }
             if (HasColine(p2, p3, circle.Center))
             {
-                var whole = GetArc(circle.Center, p2, p3);
-                var s1 = GetArc(circle.Center, p2, p1);
-                var s2 = GetArc(circle.Center, p1, p3);
-                if (whole is null || s1 is null || s2 is null) continue;
-                var pred = new LinearEquation(
-                        new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                pred.AddReason();
-                pred.AddCondition(circle);
-                updater.Add(pred);
+                TryAddArcSum(p2, p3, p1);
             }
             else
             {
-                bool b = (bool)IsOnMinorArc((circle.Center.X, circle.Center.Y), (p2.X, p2.Y), (p3.X, p3.Y), (p1.X, p1.Y));
-                if (b)
-                {
-                    var whole = GetArc(circle.Center, p2, p3);
-                    var s1 = GetArc(circle.Center, p2, p1);
-                    var s2 = GetArc(circle.Center, p1, p3);
-                    if (whole is null || s1 is null || s2 is null) continue;
-                    var pred = new LinearEquation(
-                       new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                    pred.AddReason();
-                    pred.AddCondition(circle);
-                    updater.Add(pred);
-                }
-                b = (bool)IsOnMinorArc((circle.Center.X, circle.Center.Y), (p3.X, p3.Y), (p2.X, p2.Y), (p1.X, p1.Y));
-                if (b)
-                {
-                    var whole = GetArc(circle.Center, p2, p3);
-                    var s1 = GetArc(circle.Center, p2, p1);
-                    var s2 = GetArc(circle.Center, p1, p3);
-                    if (whole is null || s1 is null || s2 is null) continue;
-                    var pred = new LinearEquation(
-                       new() { { s1.MinorArcLength, 1 }, { s2.MinorArcLength, 1 }, { whole.MinorArcLength, -1 } }, 0);
-                    pred.AddReason();
-                    pred.AddCondition(circle);
-                    updater.Add(pred);
-                }
+                if (IsOnMinorArc(circle.Center, p2, p3, p1))
+                    TryAddArcSum(p2, p3, p1);
+                if (IsOnMinorArc(circle.Center, p3, p2, p1))
+                    TryAddArcSum(p2, p3, p1);
             }
         }
     }
@@ -198,13 +118,21 @@ public class ArcRules : RuleClass
                     pred.AddCondition(arc, angle);
                     updater.Add(pred);
                 }
+                else
+                {
+                    LinearEquation pred2 = new LinearEquation(new() { { angle.Size, 1 }, { arc.Size, Expr.One / 2 } }, 180);
+                    pred2.AddReason();
+                    pred2.AddCondition(arc, angle);
+                    updater.Add(pred2);
+                }
             }
         }
     }
     [Alias("弧长与圆周长之比")]
     public void RuleArc006CalculateArcLengthToPerimeterRatio(Circle circle, Arc arcSize)
     {
-        if (arcSize[0] == circle.Center && circle.Properties.Skip(1).Contains(arcSize[1]) && circle.Properties.Skip(1).Contains(arcSize[2]))
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        if (arcSize[0] == circle.Center && onCircle.Contains(arcSize[1]) && onCircle.Contains(arcSize[2]))
         {
             ProductionEquation pred = new ProductionEquation(new() { { arcSize.MinorArcLength ,-1}, { circle.Perimeter, 1 }, { arcSize.Size, 1 } } ,360);
             pred.AddReason();
@@ -227,8 +155,9 @@ public class ArcRules : RuleClass
     [Alias("等弧的判定（等弦）")]
     public void RuleArc007ArcCongruenceByEqualChords(Circle circle, SegmentLengthEqual equal)
     {
-        if (equal.Seg1.Properties.TrueForAll(circle.Properties.Skip(1).Contains) &&
-            equal.Seg2.Properties.TrueForAll(circle.Properties.Skip(1).Contains))
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        if (equal.Seg1.Properties.TrueForAll(onCircle.Contains) &&
+            equal.Seg2.Properties.TrueForAll(onCircle.Contains))
         {
             var arc1 = GetArc(circle.Center, equal.Seg1[0], equal.Seg1[1]);
             var arc2 = GetArc(circle.Center, equal.Seg2[0], equal.Seg2[1]);
@@ -253,12 +182,13 @@ public class ArcRules : RuleClass
     [Alias("等弧的判定（等圆周角）")]
     public void RuleArc009ArcCongruenceByEqualInscribedAngles(Circle circle, AngleSizeEqual equal)
     {
-        if (!circle.Properties.Skip(1).Contains(equal.Angle1.Vertex) ||
-            !circle.Properties.Skip(1).Contains(equal.Angle2.Vertex)) return;
-        var c11 = FindCIntersection(circle.Properties.Skip(1), equal.Angle1.Edge1);
-        var c12 = FindCIntersection(circle.Properties.Skip(1), equal.Angle1.Edge2);
-        var c21 = FindCIntersection(circle.Properties.Skip(1), equal.Angle2.Edge1);
-        var c22 = FindCIntersection(circle.Properties.Skip(1), equal.Angle2.Edge2);
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        if (!onCircle.Contains(equal.Angle1.Vertex) ||
+            !onCircle.Contains(equal.Angle2.Vertex)) return;
+        var c11 = FindCIntersection(onCircle, equal.Angle1.Edge1);
+        var c12 = FindCIntersection(onCircle, equal.Angle1.Edge2);
+        var c21 = FindCIntersection(onCircle, equal.Angle2.Edge1);
+        var c22 = FindCIntersection(onCircle, equal.Angle2.Edge2);
         if (c11 is null || c12 is null || c21 is null || c22 is null) return;
         var arc1 = GetArc(circle.Center, c11, c12);
         var arc2 = GetArc(circle.Center, c21, c22);
@@ -272,10 +202,11 @@ public class ArcRules : RuleClass
     public void RuleArc010ArcCongruenceByEqualCentralAngles(Circle circle, AngleSizeEqual equal)
     {
         if (circle.Center != equal.Angle1.Vertex || circle.Center != equal.Angle2.Vertex) return;
-        var c11 = FindCIntersection(circle.Properties.Skip(1), equal.Angle1.Edge1);
-        var c12 = FindCIntersection(circle.Properties.Skip(1), equal.Angle1.Edge2);
-        var c21 = FindCIntersection(circle.Properties.Skip(1), equal.Angle2.Edge1);
-        var c22 = FindCIntersection(circle.Properties.Skip(1), equal.Angle2.Edge2);
+        List<Predicate> onCircle = circle.Properties.Skip(1).ToList();
+        var c11 = FindCIntersection(onCircle, equal.Angle1.Edge1);
+        var c12 = FindCIntersection(onCircle, equal.Angle1.Edge2);
+        var c21 = FindCIntersection(onCircle, equal.Angle2.Edge1);
+        var c22 = FindCIntersection(onCircle, equal.Angle2.Edge2);
         if (c11 is null || c12 is null || c21 is null || c22 is null) return;
         var arc1 = GetArc(circle.Center, c11, c12);
         var arc2 = GetArc(circle.Center, c21, c22);

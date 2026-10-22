@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Text;
 
+using ZTool.Infrastructures.Log;
 using ZTool.Infrastructures.Mapper;
 
 using static ZTool.Infrastructures.Log.ZLog;
-
 
 [Alias("日志输出生成器")]
 public class InferenceLogMaker : IOutputMaker
@@ -27,14 +27,14 @@ public class InferenceLogMaker : IOutputMaker
 
                 foreach (var zlogContent in m.Value)
                 {
-                    var log = zlogContent.To<LogContent>();
+                    var log = ZMapper.Map<ZLogContent, LogContent>(zlogContent);
                     lc.Add(log);
                 }
             }
         }
         foreach (var zlogContent in LogContents)
         {
-            var log = zlogContent.To<LogContent>();
+            var log = ZMapper.Map<ZLogContent, LogContent>(zlogContent);
             logOutput.LogContents.Add(log);
         }
         string timerStr = "timerStr";

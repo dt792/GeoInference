@@ -1,8 +1,8 @@
 ﻿
 public class ConditionalKnowledgeSolver
 {
-    [DI] KnowledgeBase knowledgeBase { get; set; }
-    [DI] KnowledgeBaseUpdater Updater { get; set; }
+    [DI] public KnowledgeBase knowledgeBase { get; set; }
+    [DI] public KnowledgeBaseUpdater Updater { get; set; }
     public void MakeNew()
     {
         foreach (var item in knowledgeBase.LastRoundKnowledges.Where(p => p is Predicate))
@@ -13,21 +13,17 @@ public class ConditionalKnowledgeSolver
     public Queue<Predicate> Preds { get; set; } = [];
     public bool HasNext { get => Preds.Count > 0; }
     public Predicate Next() => Preds.Dequeue();
-    public void Solve(Predicate pred)
+    public virtual void Solve(Predicate pred)
     {
         List<Knowledge> result = [];
-        if (knowledgeBase.InversedConditionalKnowledgePairDict.ContainsKey(pred.HashCode))
+        if (knowledgeBase.InversedConditionalKnowledgePairDict.TryGetValue(pred.HashCode, out var bucket))
         {
-            foreach (var ck in knowledgeBase.InversedConditionalKnowledgePairDict[pred.HashCode].ToArray())
+            foreach (var ck in bucket.ToArray())
             {
                 if (ck.Update(pred))
                 {
-                    if (ck.IsEstablish)
-                    {
-                        ck.Knowledge.Conditions.AddRange(ck.ConditionDict.Values);
-                        Updater.Add(ck.Knowledge);
-                    }
-                    knowledgeBase.InversedConditionalKnowledgePairDict[pred.HashCode].Remove(ck);
+                    Updater.Add(ck.Knowledge);
+                    bucket.Remove(ck);
                 }
             }
         }

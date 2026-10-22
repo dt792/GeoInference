@@ -86,7 +86,7 @@ public class ZScriptBuilder
                     && product.Multipliers[0] is QuantityNode mut1 &&
                     product.Divisors[0] is QuantityNode mut2)
                 {
-                    var NewKnowledge = new QuantityRatio(mut1.Quantity, mut2.Quantity, (sum.Constant.ToExpr().Opposite()));
+                    var NewKnowledge = new QuantityRatio(mut1.Quantity, mut2.Quantity, sum.Constant.ToExpr().Opposite() / product.Constant.ToExpr());
                     return NewKnowledge;
                 }
             }
@@ -114,7 +114,7 @@ public class ZScriptBuilder
                     && product.Multipliers[0] is QuantityNode mut1 &&
                     product.Divisors[0] is QuantityNode mut2)
                 {
-                    var NewKnowledge = new QuantityRatio(mut1.Quantity, mut2.Quantity, sum.Constant);
+                    var NewKnowledge = new QuantityRatio(mut1.Quantity, mut2.Quantity, sum.Constant.ToExpr() / product.Constant.ToExpr());
                     return NewKnowledge;
                 }
             }
@@ -353,6 +353,11 @@ public class ZScriptBuilder
             }
         }
 
+        if (StringTypeMap.TryGetValue("Quadrilateral", out var legacyQuadrilateralType))
+        {
+            StringTypeMap.TryAdd("Quadriliateral", legacyQuadrilateralType);
+        }
+
         if (duplicateDict.Count > 0)
         {
             var first = duplicateDict.First();
@@ -392,22 +397,9 @@ public class ZScriptBuilder
             else if (CurLine.StartsWith(ZScriptInput.LinesDef)) ProcessLines(CurLine);
             else if (CurLine.StartsWith(ZScriptInput.ProveDef)) ProcessProveLine(CurLine);
             else if (CurLine.StartsWith(ZScriptInput.SolveDef)) ProcessSolveLine(CurLine);
-            else if (CurLine.StartsWith(ZScriptInput.MinDef)) ProcessMinLine(CurLine);
-            else if (CurLine.StartsWith(ZScriptInput.MaxDef)) ProcessMaxLine(CurLine);
             else if (CurLine.StartsWith(ZScriptInput.AuxDef) && config.IsAcceptAuxiliary) ProcessAuxiliaryLine(CurLine);
             else ProcessGeneralKnowledgeLine(CurLine);
-            //try
-            //{
 
-            //}
-            //catch (ZScriptDetailedException)
-            //{
-            //    throw; // Rethrow detailed exceptions untouched
-            //}
-            //catch (Exception ex)
-            //{
-            //    ThrowError(ZScriptErrorType.SyntaxError, $"Unhandled parsing error: {ex.Message}", 0);
-            //}
         }
     }
 
@@ -524,7 +516,7 @@ public class ZScriptBuilder
     private void ProcessProveLine(string line)
     {
         var content = line.Replace(ZScriptInput.ProveDef, string.Empty).Trim();
-        var knowledge = ParseKnowledge(content);
+        var knowledge = ParseKnowledge(content, addToKnowledgeBase: false);
         var targetIndex = QuestionIndex++;
 
         switch (knowledge)
@@ -533,6 +525,13 @@ public class ZScriptBuilder
                 var target = new ProvePredicateTarget { Index = targetIndex, Target = pred };
                 targetBase.Targets.Add(target);
                 targetBase.ProvePredicateTargets.Add(target);
+                if (knowledgeBase.Predicates.TryGetValue(pred.HashCode, out var existingPred))
+                {
+                    target.IsSuccess = true;
+                    target.Conclusion = existingPred;
+                    targetBase.ProvePredicateTargets.Remove(target);
+                    targetBase.AllSolved = targetBase.Targets.TrueForAll(t => t.IsSuccess);
+                }
                 break;
             case Equation eq:
                 var target2 = new ProveEquationTarget { Index = targetIndex, Target = eq };
@@ -553,6 +552,14 @@ public class ZScriptBuilder
                 var valueTarget = new SolveQuantityValueTarget { Index = targetIndex, GeoQuantity = qNode.Quantity };
                 targetBase.SolveQuantityValueTargets.Add(valueTarget);
                 targetBase.Targets.Add(valueTarget);
+                if (knowledgeBase.QuantityValues.Values.FirstOrDefault(v => v.Quantity == qNode.Quantity) is { } existingValue)
+                {
+                    valueTarget.IsSuccess = true;
+                    valueTarget.Conclusion = existingValue;
+                    valueTarget.Answer = existingValue.Expr.ToString();
+                    targetBase.SolveQuantityValueTargets.Remove(valueTarget);
+                    targetBase.AllSolved = targetBase.Targets.TrueForAll(t => t.IsSuccess);
+                }
                 break;
             case SumNode sum:
                 var linearTarget = new SolveLinearTarget { Index = targetIndex, Target = expr.ToExpr() };
@@ -601,8 +608,6 @@ public class ZScriptBuilder
         }
     }
 
-    private void ProcessMinLine(string line) => targetBase.TakeMinValue.Add(line.Replace(ZScriptInput.MinDef, string.Empty).Trim());
-    private void ProcessMaxLine(string line) => targetBase.TakeMaxValue.Add(line.Replace(ZScriptInput.MaxDef, string.Empty).Trim());
     private void ProcessAuxiliaryLine(string line) => updater.Add(ParseKnowledge(line.Replace(ZScriptInput.AuxDef, string.Empty).Trim()));
     private void ProcessGeneralKnowledgeLine(string line) => updater.Add(ParseKnowledge(line));
 
@@ -610,19 +615,20 @@ public class ZScriptBuilder
 
     #region Parser Logic
 
-    public Knowledge ParseKnowledge(string content)
+    public Knowledge ParseKnowledge(string content, bool addToKnowledgeBase = true)
     {
         if (content.Contains('=')) return ParseEq(content);
         if (content.Contains('>') || content.Contains('<')) return ParseInequation(content);
-        return ParsePredicate(content);
+        return ParsePredicate(content, addToKnowledgeBase);
     }
 
     private Knowledge ParseInequation(string content)
     {
-        throw new NotImplementedException();
+        ThrowError(ZScriptErrorType.SyntaxError, "Inequalities are not supported yet.", CurLine.IndexOf(content));
+        return null!;
     }
 
-    public Predicate ParsePredicate(string content)
+    public Predicate ParsePredicate(string content, bool addToKnowledgeBase = true)
     {
         var parts = content.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2)
@@ -637,9 +643,8 @@ public class ZScriptBuilder
         int argsCol = CurLine.IndexOf(parts[1]);
         var args = parts[1].Split(',').ToList();
         var pred= CombinePredicateWithArgs(predicateType, args, argsCol);
-        return (Predicate)updater.Add(pred);
+        return addToKnowledgeBase ? (Predicate)updater.Add(pred) : pred;
     }
-
 
     public List<Quantity> GetEquationQuantities(string content)
     {
@@ -865,13 +870,11 @@ public class ZScriptBuilder
     {
         var tmp = script.Replace(ZScriptInput.ProveDef, "")
                         .Replace(ZScriptInput.SolveDef, "")
-                        .Replace(ZScriptInput.MinDef, "")
-                        .Replace(ZScriptInput.MaxDef, "")
                         .Replace("∠", "角");
         return PointNameRegex.Matches(tmp).Cast<Match>().Select(m => m.Value).Distinct().ToList();
     }
 
-    private Expr ParseExpr(string content) => throw new NotImplementedException();
+    private Expr ParseExpr(string content) => new(content);
 
     #endregion
 
@@ -889,14 +892,14 @@ public class ZScriptBuilder
                 return segment.Length;
             }),
             (@"^角(\w+)的Tan", match => GetAngleTan(match.Groups[1].Value)),
-            (@"^角(\w+)的Cos", match => GetAngleCos(match.Groups[1].Value)),
             (@"^角(\w+_\w+_\w+)的Cos", match => GetAngleCos(match.Groups[1].Value.Replace('_', ','))),
-            (@"^角(\w+)的Sin", match => GetAngleSin(match.Groups[1].Value)),
+            (@"^角(\w+)的Cos", match => GetAngleCos(match.Groups[1].Value)),
             (@"^角(\w+_\w+_\w+)的Sin", match => GetAngleSin(match.Groups[1].Value.Replace('_', ','))),
-            (@"^∠(\w+)", match => GetAngleSize(match.Groups[1].Value)),
+            (@"^角(\w+)的Sin", match => GetAngleSin(match.Groups[1].Value)),
             (@"^∠(\w+_\w+_\w+)", match => GetAngleSize(match.Groups[1].Value.Replace('_', ','))),
-            (@"^角(\w+)", match => GetAngleSize(match.Groups[1].Value)),
+            (@"^∠(\w+)", match => GetAngleSize(match.Groups[1].Value)),
             (@"^角(\w+_\w+_\w+)", match => GetAngleSize(match.Groups[1].Value.Replace('_', ','))),
+            (@"^角(\w+)", match => GetAngleSize(match.Groups[1].Value)),
             (@"弧(\w+)的大小", match => GetArcSize(match.Groups[1].Value)),
             (@"弧(\w+)", match => GetArcLength(match.Groups[1].Value)),
             (@"扇形(\w+)的面积", match => GetSectorArea(match.Groups[1].Value)),
@@ -910,12 +913,12 @@ public class ZScriptBuilder
             (@"四边形(\w+)的面积", match => GetQuadrilateralArea(match.Groups[1].Value)),
             (@"四边形(\w+)的周长", match => GetQuadrilateralPerimeter(match.Groups[1].Value)),
             (@"^Angle_(\w+)_Tan", match => GetAngleTan(match.Groups[1].Value)),
-            (@"^Angle_(\w+)_Cos", match => GetAngleCos(match.Groups[1].Value)),
             (@"^Angle_(\w+_\w+_\w+)_Cos", match => GetAngleCos(match.Groups[1].Value.Replace('_', ','))),
-            (@"^Angle_(\w+)_Sin", match => GetAngleSize(match.Groups[1].Value)),
-            (@"^Angle_(\w+_\w+_\w+)_Sin", match => GetAngleSize(match.Groups[1].Value.Replace('_', ','))),
-            (@"^Angle_(\w+)", match => GetAngleSize(match.Groups[1].Value)),
+            (@"^Angle_(\w+)_Cos", match => GetAngleCos(match.Groups[1].Value)),
+            (@"^Angle_(\w+_\w+_\w+)_Sin", match => GetAngleSin(match.Groups[1].Value.Replace('_', ','))),
+            (@"^Angle_(\w+)_Sin", match => GetAngleSin(match.Groups[1].Value)),
             (@"^Angle_(\w+_\w+_\w+)", match => GetAngleSize(match.Groups[1].Value.Replace('_', ','))),
+            (@"^Angle_(\w+)", match => GetAngleSize(match.Groups[1].Value)),
             (@"Arc_(\w+)_Size", match => GetArcSize(match.Groups[1].Value)),
             (@"Arc_(\w+)", match => GetArcLength(match.Groups[1].Value)),
             (@"Sector_(\w+)_Area", match => GetSectorArea(match.Groups[1].Value)),
@@ -930,6 +933,8 @@ public class ZScriptBuilder
             (@"Triangle_(\w+)_Perimeter", match => GetTrianglePerimeter(match.Groups[1].Value)),
             (@"Quad_(\w+)_Area", match => GetQuadrilateralArea(match.Groups[1].Value)),
             (@"Quad_(\w+)_Perimeter", match => GetQuadrilateralPerimeter(match.Groups[1].Value)),
+            (@"Quadrilateral_(\w+)_Area", match => GetQuadrilateralArea(match.Groups[1].Value)),
+            (@"Quadrilateral_(\w+)_Perimeter", match => GetQuadrilateralPerimeter(match.Groups[1].Value)),
             (@"Quadriliateral_(\w+)_Area", match => GetQuadrilateralArea(match.Groups[1].Value)),
             (@"Quadriliateral_(\w+)_Perimeter", match => GetQuadrilateralPerimeter(match.Groups[1].Value)),
         };
@@ -939,7 +944,7 @@ public class ZScriptBuilder
     private GeoQuantity GetArcLength(string angleStr) => ((Arc)updater.Add((Arc)ParseKnowledge($"弧 {angleStr}"))).MinorArcLength;
     private GeoQuantity GetAngleTan(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Tan;
     private GeoQuantity GetAngleCos(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Cos;
-    private GeoQuantity GetAngleSin(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Sin;
+    private GeoQuantity GetAngleSin(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Sin    ;
     private GeoQuantity GetAngleSize(string angleStr) => ((Angle)updater.Add((Angle)ParseKnowledge($"角 {angleStr}"))).Size;
     private GeoQuantity GetSectorArea(string sectorName) => ((Sector)updater.Add((Sector)ParseKnowledge($"扇形 {sectorName}"))).Area;
     private GeoQuantity GetSectorPerimeter(string sectorName) => ((Sector)updater.Add((Sector)ParseKnowledge($"扇形 {sectorName}"))).Perimeter;
@@ -949,8 +954,8 @@ public class ZScriptBuilder
     private GeoQuantity GetCircleDiameter(string circleName) => ((Circle)updater.Add((Circle)ParseKnowledge($"圆 {circleName}"))).Diameter;
     private GeoQuantity GetTriangleArea(string triName) => ((Triangle)updater.Add((Triangle)ParseKnowledge($"三角形 {triName}"))).Area;
     private GeoQuantity GetTrianglePerimeter(string triName) => ((Triangle)updater.Add((Triangle)ParseKnowledge($"三角形 {triName}"))).Perimeter;
-    private GeoQuantity GetQuadrilateralArea(string quadName) => ((Quadriliateral)updater.Add((Quadriliateral)ParseKnowledge($"四边形 {quadName}"))).Area;
-    private GeoQuantity GetQuadrilateralPerimeter(string quadName) => ((Quadriliateral)updater.Add((Quadriliateral)ParseKnowledge($"四边形 {quadName}"))).Perimeter;
+    private GeoQuantity GetQuadrilateralArea(string quadName) => ((Quadrilateral)updater.Add((Quadrilateral)ParseKnowledge($"四边形 {quadName}"))).Area;
+    private GeoQuantity GetQuadrilateralPerimeter(string quadName) => ((Quadrilateral)updater.Add((Quadrilateral)ParseKnowledge($"四边形 {quadName}"))).Perimeter;
 
     #endregion
 }

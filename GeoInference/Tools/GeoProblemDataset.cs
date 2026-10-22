@@ -6,6 +6,11 @@ using System.Text.RegularExpressions;
 
 public class GeoProblemDataset : FileSingleton<GeoProblemDataset>
 {
+    public const string FormalGeo7KL1 = "FormalGeo7KL1";
+    public const string FormalGeo7KL2 = "FormalGeo7KL2";
+    public const string FormalGeo7KL3 = "FormalGeo7KL3";
+    public const string FormalGeo7KL4 = "FormalGeo7KL4";
+    public const string FormalGeo7KL5 = "FormalGeo7KL5";
     public const string FormalGeo7KL6 = "FormalGeo7KL6";
     /// <summary>
     

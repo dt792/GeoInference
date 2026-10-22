@@ -30,7 +30,7 @@ public class ProductionEquation : Equation
         SetHashCode();
         CoExpr = ToString();
     }
-    public void SetHashCode()
+    public override void SetHashCode()
     {
         HashCode = (ulong)ToString().GetHashCode();
     }

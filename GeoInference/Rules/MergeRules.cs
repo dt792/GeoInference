@@ -19,7 +19,6 @@ public class FineLinesRules : RuleClass
     [Alias("三角形的边与连线生成")]
     public void RuleFL002TriangleLineRelationship(Triangle triangle)
     {
-        List<Knowledge> preds = new List<Knowledge>();
         List<Knowledge> knowledge = new List<Knowledge>();
         knowledge.Add(new Segment((Point)triangle[0], (Point)triangle[1]));
         knowledge.Add(new Segment((Point)triangle[1], (Point)triangle[2]));
@@ -35,9 +34,8 @@ public class FineLinesRules : RuleClass
         }
     }
     [Alias("四边形的边与连线生成")]
-    public void RuleFL003QuadrilateralLineRelationship(Quadriliateral quad)
+    public void RuleFL003QuadrilateralLineRelationship(Quadrilateral quad)
     {
-        List<Knowledge> preds = new List<Knowledge>();
         List<Knowledge> knowledge = new List<Knowledge>();
         knowledge.Add(new Segment((Point)quad[0], (Point)quad[1]));
         knowledge.Add(new Segment((Point)quad[1], (Point)quad[2]));
@@ -51,7 +49,7 @@ public class FineLinesRules : RuleClass
         {
             k.AddReason();
             k.AddCondition(quad);
-            updater.Add(k); ;
+            updater.Add(k);
         }
     }
     [Alias("点在线段上推出共线")]
@@ -82,18 +80,13 @@ public class FineLinesRules : RuleClass
         updater.Add(pred2);
     }
 
-    [Alias("线段生成直线")]
-    public void RuleFL006GenerateLine(Segment seg)
-    {
-        Line pred = new Line((Point)seg[0], (Point)seg[1]);
-        pred.AddReason();
-        pred.AddCondition();
-        updater.Add(pred);
-    }
 }
 [RuleType(RuleType.AutoGeneration)]
 public class AutoGenerateRules : RuleClass
 {
+    private static bool AllDistinct(Point p1, Point p2, Point p3, Point p4)
+        => p1 != p2 && p1 != p3 && p1 != p4 && p2 != p3 && p2 != p4 && p3 != p4;
+
     [Alias("三角形的自动构造")]
     public void RuleAutoGen001TriangleGeneration(Point p1, Point p2, Point p3)
     {
@@ -111,7 +104,7 @@ public class AutoGenerateRules : RuleClass
     [Alias("四边形的自动构造")]
     public void RuleAutoGen002QuadrilateralGeneration(Point p1, Point p2, Point p3, Point p4)
     {
-        if (p1 == p2 || p1 == p3 || p1 == p4 || p3 == p2 || p4 == p2 || p3 == p4) return ;
+        if (!AllDistinct(p1, p2, p3, p4)) return ;
         if (HasSegment(p1, p2) && HasSegment(p2, p3) &&
             HasSegment(p3, p4) && HasSegment(p4, p1))
         {
@@ -128,7 +121,7 @@ public class AutoGenerateRules : RuleClass
                     GetJudgeIpsilateral(p3, p4, p1, p2) is PointsOnLineSameSide &&
                     GetJudgeIpsilateral(p4, p1, p2, p3) is PointsOnLineSameSide)
                 {
-                    Quadriliateral pred = new Quadriliateral(p1, p2, p3, p4);
+                    Quadrilateral pred = new Quadrilateral(p1, p2, p3, p4);
                     pred.AddReason();
                     pred.AddCondition();
                     updater.Add(pred);

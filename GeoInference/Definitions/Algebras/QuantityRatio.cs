@@ -48,6 +48,16 @@ public class QuantityRatio : Equation
         if (Quantity1.Unit != Quantity2.Unit) return null;
         if (Quantity1 is GeoQuantity q1 && Quantity2 is GeoQuantity q2)
         {
+            if (Ratio == Expr.One)
+            {
+                var diameterSegmentEqual = ToSegmentEqualCircleDiameter(q1, q2) ?? ToSegmentEqualCircleDiameter(q2, q1);
+                if (diameterSegmentEqual is not null)
+                {
+                    diameterSegmentEqual.Reason = Reason;
+                    diameterSegmentEqual.Conditions.AddRange(Conditions);
+                    return diameterSegmentEqual;
+                }
+            }
             if (q1.Figures[0] is Segment seg1 && q2.Figures[0] is Segment seg2)
             {
                 if (Ratio == Expr.One)
@@ -95,5 +105,14 @@ public class QuantityRatio : Equation
             }
         }
         return null;
+    }
+
+    private static SegmentEqualCircleDiameter ToSegmentEqualCircleDiameter(GeoQuantity diameterQuantity, GeoQuantity segmentQuantity)
+    {
+        if (diameterQuantity.PropName != Quantity.Diameter) return null;
+        if (segmentQuantity.PropName != Quantity.Length) return null;
+        if (diameterQuantity.Figures[0] is not Circle circle) return null;
+        if (segmentQuantity.Figures[0] is not Segment segment) return null;
+        return new SegmentEqualCircleDiameter(circle, segment);
     }
 }

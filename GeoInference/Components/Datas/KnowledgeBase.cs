@@ -1,7 +1,5 @@
-﻿
+﻿﻿
 using GeoInference.Definitions.Knowledges;
-
-using ZGeoReasoning.Definitions.Deductions;
 
 public class KnowledgeBase
 {
@@ -17,8 +15,11 @@ public class KnowledgeBase
     #region DD
     public Dictionary<ulong, Predicate> Predicates { get; set; } = [];
     public Dictionary<Type, List<Predicate>> Categories { get; set; } = [];
-    public List<CondictionalKnowledge> ConditionalKnowledgePairs { get; set; } = [];
-    public Dictionary<ulong, List<CondictionalKnowledge>> InversedConditionalKnowledgePairDict { get; set; } = [];
+    public List<ConditionalKnowledge> ConditionalKnowledgePairs { get; set; } = [];
+    /// <summary>
+    /// </summary>
+    public Dictionary<ulong, List<ConditionalKnowledge>> ConditionalKnowledgePairDict { get; set; } = [];
+    public Dictionary<ulong, List<ConditionalKnowledge>> InversedConditionalKnowledgePairDict { get; set; } = [];
     #endregion
 
     public Dictionary<QuantityClassifications, List<EqualityChain>> EqualityChains { get; set; } =

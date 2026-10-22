@@ -47,14 +47,14 @@ The figure below shows the compression/reduction effect of **rule instantiation*
 
 ## Adjusting Parallel Thread Count
 
-The inference process supports parallel execution. You can adjust the number of concurrent threads according to your CPU. The default maximum concurrency is `16`.
+The inference process supports parallel execution. You can adjust the number of concurrent threads according to your CPU. The default maximum concurrency is `5`.
 
 Set the `MaxThreads` property in `GeoInference.Tests/Program.cs`:
 
 ```csharp
 IntegratedTester tester = new IntegratedTester();
 // Adjust the number of concurrent threads according to your CPU
-tester.MaxThreads = 10;
+tester.MaxThreads = 5;
 await tester.Test();
 ```
 

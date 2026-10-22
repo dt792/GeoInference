@@ -7,33 +7,39 @@ using ScottPlot;
 GeoProblemDataset.Instance.RebuildIndex(GeoProblemDataset.DatasetPath);
 ////batch test
 IntegratedTester tester = new IntegratedTester();
-//"Excessive threads during the inference process may cause calculation errors, resulting in the return of a time string. Reducing the number of threads can help mitigate this issue."
-tester.MaxThreads = 10;
+//"Excessive threads during the inference process may cause calculation errors, resulting in the return of a time string. Reducing the number of threads can help mitigate this issue.";
+tester.MaxThreads = 5;
 await tester.Test();
 
-////Run("6892");
+//Run("3026", "FormalGeo7KL2");
 IntegratedResultReporter maker = new IntegratedResultReporter();
-maker.Total = GeoProblemDataset.Instance["FormalGeo7KL6"].Count();
+maker.InitTotals();
 maker.LoadAllData();
 maker.GenerateStatuAndInferenceTimeReportExcel();
-maker.GenerateMetricsTables();
-maker.GenerateMetricsCharts();
+maker.GenerateAllLevelReports();
 
-
-static void Run(string problemName)
+static void Run(string problemName, string dataset = "FormalGeo7KL6")
 {
     //Language Switch: true->CN/false->EN
-    GeoInferenceApp.IsZhOrEn = false;
+    GeoInferenceApp.UseChinese = true;
     GeoInferenceApp app = new GeoInferenceApp();
-    var config = GeoInferenceConfigs.Discovering;
+
+   var config=  GeoInferenceConfigs.Solving;
     GeoProblemDataset.Instance.RebuildIndex(GeoProblemDataset.DatasetPath);
-    var problem = GeoProblemDataset.Instance["FormalGeo7KL6"][problemName.ToString()];
+    var problem = GeoProblemDataset.Instance[dataset][problemName.ToString()];
     app.Initialize(config);
-    app.Inference(new ZScriptInput() { Script= problem.Problem_Input_CN });
-    var result= app.MakeResult();
+    try
+    {
+        app.Inference(new ZScriptInput() { Script = problem.Problem_Input_EN });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("INFERENCE_CRASH: " + ex.Message);
+    }
+    var result = app.MakeResult();
     Console.WriteLine(result.HumanLikeAnswer?.IsAllSuccess);
     Console.WriteLine(result.HumanLikeAnswer?.Answers.First());
-    WriteResult($"{problemName}.json",result);
+    WriteResult($"{problemName}.json", result);
     static void WriteResult(string savePath, GeoInferenceResult result)
     {
         var dir = Path.GetDirectoryName(savePath);

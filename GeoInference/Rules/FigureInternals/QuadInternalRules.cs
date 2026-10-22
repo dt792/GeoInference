@@ -1,4 +1,4 @@
-﻿
+﻿﻿﻿
 [RuleType(RuleType.Internal)]
 internal class QuadInternalRules : RuleClass
 {
@@ -13,10 +13,10 @@ internal class QuadInternalRules : RuleClass
         rhombus.AddReason();
         rhombus.AddCondition(square);
         updater.Add(rhombus);
-        Quadriliateral quadriliateral = new Quadriliateral((Point)square[0], (Point)square[1], (Point)square[2], (Point)square[3]);
-        quadriliateral.AddReason();
-        quadriliateral.AddCondition(square);
-        updater.Add(quadriliateral);
+        Quadrilateral quadrilateral = new Quadrilateral((Point)square[0], (Point)square[1], (Point)square[2], (Point)square[3]);
+        quadrilateral.AddReason();
+        quadrilateral.AddCondition(square);
+        updater.Add(quadrilateral);
     }
 
     [Alias("矩形是平行四边形")]
@@ -26,10 +26,10 @@ internal class QuadInternalRules : RuleClass
         parallelogram.AddReason();
         parallelogram.AddCondition(rect);
         updater.Add(parallelogram);
-        Quadriliateral quadriliateral = new Quadriliateral((Point)rect[0], (Point)rect[1], (Point)rect[2], (Point)rect[3]);
-        quadriliateral.AddReason();
-        quadriliateral.AddCondition(rect);
-        updater.Add(quadriliateral);
+        Quadrilateral quadrilateral = new Quadrilateral((Point)rect[0], (Point)rect[1], (Point)rect[2], (Point)rect[3]);
+        quadrilateral.AddReason();
+        quadrilateral.AddCondition(rect);
+        updater.Add(quadrilateral);
     }
 
     [Alias("菱形是平行四边形和筝形")]
@@ -48,7 +48,7 @@ internal class QuadInternalRules : RuleClass
     [Alias("筝形是四边形")]
     public void RuleQuadInternal004KiteIsQuadrilateral(Kite quad)
     {
-        Quadriliateral parallelogram = new Quadriliateral((Point)quad[0], (Point)quad[1], (Point)quad[2], (Point)quad[3]);
+        Quadrilateral parallelogram = new Quadrilateral((Point)quad[0], (Point)quad[1], (Point)quad[2], (Point)quad[3]);
         parallelogram.AddReason();
         parallelogram.AddCondition(quad);
         updater.Add(parallelogram);
@@ -57,7 +57,7 @@ internal class QuadInternalRules : RuleClass
     [Alias("平行四边形是四边形")]
     public void RuleQuadInternal005ParallelogramIsQuadrilateral(Parallelogram parallel)
     {
-        Quadriliateral parallelogram = new Quadriliateral((Point)parallel[0], (Point)parallel[1], (Point)parallel[2], (Point)parallel[3]);
+        Quadrilateral parallelogram = new Quadrilateral((Point)parallel[0], (Point)parallel[1], (Point)parallel[2], (Point)parallel[3]);
         parallelogram.AddReason();
         parallelogram.AddCondition(parallel);
         updater.Add(parallelogram);
@@ -75,7 +75,7 @@ internal class QuadInternalRules : RuleClass
     [Alias("直角梯形是四边形")]
     public void RuleQuadInternal007RightTrapezoidIsQuadrilateral(RightTrapezoid trapezoid)
     {
-        Quadriliateral pred = new Quadriliateral((Point)trapezoid[0], (Point)trapezoid[1], (Point)trapezoid[2], (Point)trapezoid[3]);
+        Quadrilateral pred = new Quadrilateral((Point)trapezoid[0], (Point)trapezoid[1], (Point)trapezoid[2], (Point)trapezoid[3]);
         pred.AddReason();
         pred.AddCondition(trapezoid);
         updater.Add(pred);
@@ -84,7 +84,7 @@ internal class QuadInternalRules : RuleClass
     [Alias("梯形是四边形")]
     public void RuleQuadInternal008TrapezoidIsQuadrilateral(Trapezoid trapezoid)
     {
-        Quadriliateral pred = new Quadriliateral((Point)trapezoid[0], (Point)trapezoid[1], (Point)trapezoid[2], (Point)trapezoid[3]);
+        Quadrilateral pred = new Quadrilateral((Point)trapezoid[0], (Point)trapezoid[1], (Point)trapezoid[2], (Point)trapezoid[3]);
         pred.AddReason();
         pred.AddCondition(trapezoid);
         updater.Add(pred);

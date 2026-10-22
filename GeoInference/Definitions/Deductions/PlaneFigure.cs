@@ -3,32 +3,10 @@
 public abstract class PlaneFigure : Figure
 {
     GeoQuantity area;
-    public GeoQuantity Area
-    {
-        get
-        {
-            if (area is null)
-            {
-                area = new GeoQuantity([this], GeoQuantity.Area);
-            }
-
-            return area;
-        }
-    }
+    public GeoQuantity Area => GetQuantity(ref area, GeoQuantity.Area);
 
     GeoQuantity perimeter;
-    public GeoQuantity Perimeter
-    {
-        get
-        {
-            if (perimeter is null)
-            {
-                perimeter = new GeoQuantity([this], GeoQuantity.Perimeter);
-            }
-
-            return perimeter;
-        }
-    }
+    public GeoQuantity Perimeter => GetQuantity(ref perimeter, GeoQuantity.Perimeter);
 
     public void NormalizeForPolygon()
     {
@@ -77,7 +55,7 @@ public abstract class PlaneFigure : Figure
             if (cProperties[i].PosIndex < point.PosIndex)
             {
                 flag = i;
-
+                point = (Point)cProperties[i];
             }
         }
         
@@ -95,9 +73,24 @@ public abstract class PlaneFigure : Figure
             cProperties[1] = cProperties[0];
             cProperties[0] = temp;
 
-            
             temp = cProperties[3];
             cProperties[3] = cProperties[2];
+            cProperties[2] = temp;
+        }
+    }
+    /// <summary>
+    /// </summary>
+    public void NormalizeForRightTrapezoid()
+    {
+        var cProperties = this.Properties;
+        if (cProperties[0].PosIndex > cProperties[3].PosIndex)
+        {
+            var temp = cProperties[0];
+            cProperties[0] = cProperties[3];
+            cProperties[3] = temp;
+
+            temp = cProperties[1];
+            cProperties[1] = cProperties[2];
             cProperties[2] = temp;
         }
     }

@@ -244,6 +244,34 @@ public class RuleTriHeart : RuleClass
         }
     }
 
+    [Alias("三角形中线重合于一点")]
+    public void RuleTriH009CentroidOnMedian(TriangleCentroid centroid, Midpoint midpoint)
+    {
+        var tri = (Triangle)centroid[1];
+        var g = (Point)centroid[0];
+        var m = (Point)midpoint[0];
+        if (g == m) return;
+        Point top = null;
+        if (tri[1] == midpoint[1] && tri[2] == midpoint[2] || tri[2] == midpoint[1] && tri[1] == midpoint[2])
+            top = (Point)tri[0];
+        else if (tri[0] == midpoint[1] && tri[2] == midpoint[2] || tri[2] == midpoint[1] && tri[0] == midpoint[2])
+            top = (Point)tri[1];
+        else if (tri[0] == midpoint[1] && tri[1] == midpoint[2] || tri[1] == midpoint[1] && tri[0] == midpoint[2])
+            top = (Point)tri[2];
+        else
+            return;
+        var seg = GetSegment(top, m);
+        if (seg is null) return;
+        TriangleMedian median = new(seg, tri);
+        median.AddReason();
+        median.AddCondition(centroid, midpoint);
+        updater.Add(median);
+        PointOnSeg pos = new(g, top, m);
+        pos.AddReason();
+        pos.AddCondition(centroid, midpoint);
+        updater.Add(pos);
+    }
+
     [Alias("三角形内心的性质")]
     public void RuleTriH008IncenterProperties(TriangleIncenter incenter)
     {
@@ -277,5 +305,83 @@ public class RuleTriHeart : RuleClass
             pred.AddCondition(incenter);
             updater.Add(pred);
         }
+    }
+
+    [Alias("三角形垂心在高线上")]
+    public void RuleTriH010OrthocenterOnAltitude(TriangleOrthocenter ort, LinePerpendicular perpendicular)
+    {
+        var tri = (Triangle)ort[1];
+        var o = (Point)ort[0];
+        for (int i = 0; i < 3; i++)
+        {
+            var top = (Point)tri[i];
+            var side = GetLine(tri[(i + 1) % 3], tri[(i + 2) % 3]);
+            if (side is null) continue;
+            Line alt = null;
+            if (perpendicular.Line1 == side && perpendicular.Line2.Contains(top))
+                alt = perpendicular.Line2;
+            else if (perpendicular.Line2 == side && perpendicular.Line1.Contains(top))
+                alt = perpendicular.Line1;
+            if (alt is null || alt == side) continue;
+            AddColineConclusion(ort, perpendicular, o, alt);
+        }
+    }
+
+    [Alias("三角形外心在垂直平分线上")]
+    public void RuleTriH011CircumcenterOnPerpendicularBisector(TriangleCircumcenter circumcenter, VerticalBisectorLine verticalBisector)
+    {
+        var tri = (Triangle)circumcenter[1];
+        var o = (Point)circumcenter[0];
+        var s1 = GetSegment(tri[0], tri[1]);
+        var s2 = GetSegment(tri[1], tri[2]);
+        var s3 = GetSegment(tri[2], tri[0]);
+        var isSide = s1 is not null && verticalBisector.Seg == s1
+                  || s2 is not null && verticalBisector.Seg == s2
+                  || s3 is not null && verticalBisector.Seg == s3;
+        if (!isSide) return;
+        AddColineConclusion(circumcenter, verticalBisector, o, verticalBisector.Bisector);
+    }
+
+    [Alias("三角形内心在角平分线上")]
+    public void RuleTriH012IncenterOnAngleBisector(TriangleIncenter incenter, AngularBisectorLine bisector)
+    {
+        var tri = (Triangle)incenter[1];
+        var i = (Point)incenter[0];
+        Angle abc = GetAngle(tri[0], tri[1], tri[2]);
+        Angle bca = GetAngle(tri[1], tri[2], tri[0]);
+        Angle cab = GetAngle(tri[2], tri[0], tri[1]);
+        List<Angle> s = [abc, bca, cab];
+        if (!s.Contains(bisector.Angle)) return;
+        AddColineConclusion(incenter, bisector, i, bisector.Bisector);
+    }
+
+    private void AddColineConclusion(Predicate condition1, Predicate condition2, Point c, Line line)
+    {
+        var pts = line.Properties.OfType<Point>().Where(p => p != c).ToList();
+        for (int i = 0; i < pts.Count; i++)
+        {
+            for (int j = i + 1; j < pts.Count; j++)
+            {
+                var pred = CreateColinePredicate(c, pts[i], pts[j]);
+                if (pred is null) continue;
+                pred.AddReason();
+                pred.AddCondition(condition1, condition2);
+                updater.Add(pred);
+            }
+        }
+    }
+
+    private static PointOnSeg CreateColinePredicate(Point a, Point b, Point c)
+    {
+        if (IsBetween(a, b, c)) return new PointOnSeg(a, b, c);
+        if (IsBetween(b, a, c)) return new PointOnSeg(b, a, c);
+        if (IsBetween(c, a, b)) return new PointOnSeg(c, a, b);
+        return null;
+    }
+
+    private static bool IsBetween(Point mid, Point p1, Point p2)
+    {
+        const double Epsilon = 1e-9;
+        return (mid.X - p1.X) * (p2.X - mid.X) >= -Epsilon && (mid.Y - p1.Y) * (p2.Y - mid.Y) >= -Epsilon;
     }
 }

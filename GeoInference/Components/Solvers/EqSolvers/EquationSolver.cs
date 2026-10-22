@@ -42,7 +42,7 @@ public class EquationSolver
     [DI] public KnowledgeBase knowledgeBase { get; set; }
 
     [DI] public KnowledgeBaseUpdater updater { get; set; }
-
+    [DI] public GeoInferenceApp App;
     #region Update
     public virtual void Update(Knowledge KnowledgeAdded)
     {
@@ -81,8 +81,8 @@ public class EquationSolver
             }
             else if (pequation.Coff.Keys.ToList().TrueForAll(p => p.Unit == QuantityClassifications.Angle))
             {
-                pequation.Type = GeoEquationTypes.MixedOther;
-                AddOtherEquation(pequation);
+                pequation.Type = GeoEquationTypes.AngularProduction;
+                AddProductionEquation(pequation);
             }
             else
             {
@@ -112,66 +112,68 @@ public class EquationSolver
     }
     public virtual void AddQV(QuantityValue qvalue)
     {
-        if (qvalue.Expr != 0)
+        if (qvalue.Expr == 0)
+            return;
+        var unit = qvalue.Quantity.Unit;
+        if (knowledgeBase.IndexContinuedDict.TryGetValue(qvalue.Quantity, out var hadeq))
         {
-            var valueeq = knowledgeBase.EqualityChains[qvalue.Quantity.Unit].FirstOrDefault(eq => eq.ActualValue is not null);
-            if (valueeq is not null)
+            if (hadeq.ActualValue is not null)
             {
-                if (knowledgeBase.IndexContinuedDict.ContainsKey(qvalue.Quantity))
+                hadeq.SetReason(qvalue.Quantity.ToString(), EqualityChain.Value, qvalue);
+                return;
+            }
+            var valueeq = knowledgeBase.EqualityChains[unit].FirstOrDefault(eq => eq.ActualValue is not null);
+            hadeq.AddValue(qvalue);
+            if (valueeq is null)
+            {
+                MakeNewKnowledge(hadeq);
+                ECUpdated(hadeq);
+                return;
+            }
+            if (valueeq.index < hadeq.index)
+            {
+                valueeq.CombineByValue(hadeq);
+                foreach (var item in hadeq.CoffDict)
                 {
-                    var hadeq = knowledgeBase.IndexContinuedDict[qvalue.Quantity];
-                    if (valueeq != hadeq)
-                    {
-                        hadeq.AddValue(qvalue);
-                        if (valueeq.index < hadeq.index)
-                        {
-                            valueeq.CombineByValue(hadeq);
-                            foreach (var item in hadeq.CoffDict)
-                            {
-                                knowledgeBase.IndexContinuedDict[item.Key] = valueeq;
-                            }
-                            knowledgeBase.EqualityChains[hadeq.Unit].Remove(hadeq);
-                            MakeNewKnowledge(hadeq);
-                            MakeNewKnowledge(valueeq);
-                            ECUpdated(valueeq);
-                        }
-                        else
-                        {
-                            hadeq.CombineByValue(valueeq);
-                            foreach (var item in valueeq.CoffDict)
-                            {
-                                knowledgeBase.IndexContinuedDict[item.Key] = hadeq;
-                            }
-                            knowledgeBase.EqualityChains[hadeq.Unit].Remove(valueeq);
-                            MakeNewKnowledge(hadeq);
-                            MakeNewKnowledge(valueeq);
-                            ECUpdated(hadeq);
-                        }
-
-                    }
+                    knowledgeBase.IndexContinuedDict[item.Key] = valueeq;
                 }
-                else
-                {
-                    valueeq.AddValue(qvalue);
-                    knowledgeBase.IndexContinuedDict[qvalue.Quantity] = valueeq;
-                    MakeNewKnowledge(knowledgeBase.IndexContinuedDict[qvalue.Quantity]);
-                    ECUpdated(valueeq);
-                }
+                knowledgeBase.EqualityChains[hadeq.Unit].Remove(hadeq);
+                MakeNewKnowledge(valueeq);
+                ECUpdated(valueeq);
             }
             else
             {
-                valueeq = new EqualityChain();
-                valueeq.AddValue(qvalue);
-                knowledgeBase.EqualityChains[qvalue.Quantity.Unit].Add(valueeq);
-                knowledgeBase.IndexContinuedDict[qvalue.Quantity] = valueeq;
-                MakeNewKnowledge(knowledgeBase.IndexContinuedDict[qvalue.Quantity]);
-                ECUpdated(valueeq);
+                hadeq.CombineByValue(valueeq);
+                foreach (var item in valueeq.CoffDict)
+                {
+                    knowledgeBase.IndexContinuedDict[item.Key] = hadeq;
+                }
+                knowledgeBase.EqualityChains[hadeq.Unit].Remove(valueeq);
+                MakeNewKnowledge(hadeq);
+                ECUpdated(hadeq);
             }
+            return;
+        }
+        var valuedChain = knowledgeBase.EqualityChains[unit].FirstOrDefault(eq => eq.ActualValue is not null);
+        if (valuedChain is not null)
+        {
+            valuedChain.AddValue(qvalue);
+            knowledgeBase.IndexContinuedDict[qvalue.Quantity] = valuedChain;
+            MakeNewKnowledge(valuedChain);
+            ECUpdated(valuedChain);
+        }
+        else
+        {
+            valuedChain = new EqualityChain();
+            valuedChain.AddValue(qvalue);
+            knowledgeBase.EqualityChains[unit].Add(valuedChain);
+            knowledgeBase.IndexContinuedDict[qvalue.Quantity] = valuedChain;
+            MakeNewKnowledge(valuedChain);
+            ECUpdated(valuedChain);
         }
     }
     public virtual void AddQR(QuantityRatio qratio)
     {
-        
         if (qratio.Quantity1.Unit != qratio.Quantity2.Unit)
             return;
         var gq1 = qratio.Quantity1;
@@ -285,7 +287,7 @@ public class EquationSolver
     {
         if (eq.Type == GeoEquationTypes.DistanceProduction)
         {
-            DistanceProductionMatrix.AddEquation(eq.Coff, eq.Constant);
+            DistanceProductionMatrix.AddEquation(eq.Coff, eq.Constant, eq);
             foreach (var item in DistanceLinerPairedInfos.Union(DistanceOtherPairedInfos).Union(OtherMixedPairedInfos))
             {
                 EquationSystem eqSym = new EquationSystem();
@@ -306,7 +308,7 @@ public class EquationSolver
         }
         else if (eq.Type == GeoEquationTypes.AngularProduction)
         {
-            AngularProductionMatrix.AddEquation(eq.Coff, eq.Constant);
+            AngularProductionMatrix.AddEquation(eq.Coff, eq.Constant, eq);
             foreach (var item in AngularLinerPairedInfos.Union(AngularOtherPairedInfos).Union(OtherMixedPairedInfos))
             {
                 EquationSystem eqSym = new EquationSystem();
@@ -445,7 +447,7 @@ public class EquationSolver
         {
             foreach (Match match in matches)
             {
-                bool condictionflag = false;
+                bool conditionflag = false;
                 var temp = new Dictionary<string, string>();
                 foreach (var varNameValue in match.Groups[1].Value.Split(','))
                 {
@@ -455,7 +457,7 @@ public class EquationSolver
                         var r = varNameValue.Split("<=")[1];
                         if (l != "0")
                         {
-                            condictionflag = true; break;
+                            conditionflag = true; break;
                         }
                         continue;
                     }
@@ -465,7 +467,7 @@ public class EquationSolver
                         var r = varNameValue.Split("<")[1];
                         if (l != "0")
                         {
-                            condictionflag = true; break;
+                            conditionflag = true; break;
                         }
                         continue;
                     }
@@ -475,7 +477,7 @@ public class EquationSolver
                         var r = varNameValue.Split(">=")[1];
                         if (r != "0")
                         {
-                            condictionflag = true; break;
+                            conditionflag = true; break;
                         }
                         continue;
                     }
@@ -485,18 +487,18 @@ public class EquationSolver
                         var r = varNameValue.Split(">")[1];
                         if (r != "0")
                         {
-                            condictionflag = true; break;
+                            conditionflag = true; break;
                         }
                         continue;
                     }
                     if (!varNameValue.Contains('='))
-                    { condictionflag = true; break; }
+                    { conditionflag = true; break; }
                     var varName = varNameValue.Split('=')[0];
                     var varValue = varNameValue.Split('=')[1];
                     if (temp.ContainsKey(varName)) continue;
                     temp.Add(varName, varValue);
                 }
-                if (!condictionflag)
+                if (!conditionflag)
                     output.Add(temp);
             }
         }
@@ -512,10 +514,10 @@ public class EquationSolver
                     {
                         if (ratio.Quantity1.Unit == ratio.Quantity2.Unit)
                         {
-                            if (GeoInferenceApp.IsZhOrEn)
+                            if (GeoInferenceApp.UseChinese)
                                 a.AddReason("方程组求解");
                             else
-                                a.AddReason("DiscoverdByEquationSystem");
+                                a.AddReason("DiscoveredByEquationSystem");
                             sym.Conditions = sym.Conditions.Distinct().ToList();
                             a.AddCondition(sym.Conditions);
                             nk.Add(a);
@@ -523,10 +525,10 @@ public class EquationSolver
                     }
                     else if (a is QuantityValue)
                     {
-                        if (GeoInferenceApp.IsZhOrEn)
+                        if (GeoInferenceApp.UseChinese)
                             a.AddReason("方程组求解");
                         else
-                            a.AddReason("DiscoverdByEquationSystem");
+                            a.AddReason("DiscoveredByEquationSystem");
                         sym.Conditions = sym.Conditions.Distinct().ToList();
                         a.AddCondition(sym.Conditions);
                         nk.Add(a);
@@ -577,6 +579,8 @@ public class EquationSolver
         }
         else if (sym.State == EqSymStates.TooComplex)
         {
+            TriedEqSyms.Remove(sym);
+            ReadyToTryEqSyms.Remove(sym);
             TooComplexEqsyms.Remove(sym);
             TooComplexEqsyms.Add(sym);
         }
@@ -589,7 +593,7 @@ public class EquationSolver
     public virtual void SolveEqSym()
     {
         Reset();
-        while (ReadyToTryEqSyms.Count > 0)
+        while (!App.IsActivedStop && ReadyToTryEqSyms.Count > 0)
         {
             var nextEqSym = ReadyToTryEqSyms[0];
             ReadyToTryEqSyms.RemoveAt(0);
@@ -610,8 +614,6 @@ public class EquationSolver
     }
     public virtual bool TrySimplifyEqSym(EquationSystem sym)
     {
-        if (sym.PosIndex == 9)
-            ;
         var isSimplified = false;
         sym.Quantities = sym.Quantities.Distinct().ToList();
         ZListDict<EqualityChain, Quantity> dict = [];
@@ -759,7 +761,7 @@ public class EquationSolver
                 if (item.CoffDict.Count == 1)
                 {
                     CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = DistanceLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    var b = DistanceLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First(), item.Reasons.Select(r => r.reason));
                 }
                 else
                 {
@@ -773,7 +775,7 @@ public class EquationSolver
                     if (CoffDict.Count > 0)
                     {
                         CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                        var b = DistanceLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                        var b = DistanceLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First(), item.Reasons.Select(r => r.reason));
                     }
                 }
             }
@@ -792,7 +794,7 @@ public class EquationSolver
                 if (item.CoffDict.Count == 1)
                 {
                     CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = AngularLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    var b = AngularLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First(), item.Reasons.Select(r => r.reason));
                 }
                 else
                 {
@@ -806,12 +808,19 @@ public class EquationSolver
                     if (CoffDict.Count > 0)
                     {
                         CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                        var b = AngularLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                        var b = AngularLinearMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First(), item.Reasons.Select(r => r.reason));
                     }
                 }
                 
             }
             var nks1 = AngularLinearMatrix.DiscoverRelations();
+            if (Environment.GetEnvironmentVariable("GEO_DIAG_MATRIX") == "1")
+            {
+                Console.WriteLine("[DiagMatrix] ==== Angular RREF ====");
+                Console.WriteLine(AngularLinearMatrix.GetCompleteMatrixString());
+                Console.WriteLine("[DiagMatrix] ==== Discovered ====");
+                foreach (var item in nks1) Console.WriteLine("[DiagMatrix]   " + item);
+            }
             QuantityEquationMatrixUpdated?.Invoke(AngularLinearMatrix);
             foreach (var item in nks1)
             {
@@ -830,10 +839,11 @@ public class EquationSolver
                         CoffDict.Add(kv.Key, kv.Value);
                     }
                 }
-                if (CoffDict.Count > 0)
+                var baseQuantity = item.CoffDict.Keys.First();
+                if (CoffDict.Count > 0 || cc.Contains(baseQuantity))
                 {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    CoffDict.Add(baseQuantity, item.CoffDict[baseQuantity]);
+                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, baseQuantity, item.Reasons.Select(r => r.reason));
                 }
             }
             foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Sin])
@@ -846,10 +856,11 @@ public class EquationSolver
                         CoffDict.Add(kv.Key, kv.Value);
                     }
                 }
-                if (CoffDict.Count > 0)
+                var baseQuantity = item.CoffDict.Keys.First();
+                if (CoffDict.Count > 0 || cc.Contains(baseQuantity))
                 {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    CoffDict.Add(baseQuantity, item.CoffDict[baseQuantity]);
+                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, baseQuantity, item.Reasons.Select(r => r.reason));
                 }
             }
             foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Cos])
@@ -862,10 +873,11 @@ public class EquationSolver
                         CoffDict.Add(kv.Key, kv.Value);
                     }
                 }
-                if (CoffDict.Count > 0)
+                var baseQuantity = item.CoffDict.Keys.First();
+                if (CoffDict.Count > 0 || cc.Contains(baseQuantity))
                 {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    CoffDict.Add(baseQuantity, item.CoffDict[baseQuantity]);
+                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, baseQuantity, item.Reasons.Select(r => r.reason));
                 }
             }
             foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Tan])
@@ -878,10 +890,11 @@ public class EquationSolver
                         CoffDict.Add(kv.Key, kv.Value);
                     }
                 }
-                if (CoffDict.Count > 0)
+                var baseQuantity = item.CoffDict.Keys.First();
+                if (CoffDict.Count > 0 || cc.Contains(baseQuantity))
                 {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    CoffDict.Add(baseQuantity, item.CoffDict[baseQuantity]);
+                    var b = DistanceProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, baseQuantity, item.Reasons.Select(r => r.reason));
                 }
             }
             var nks1 = DistanceProductionMatrix.DiscoverRelations();
@@ -892,7 +905,7 @@ public class EquationSolver
         }
         {
             var cc = AngularProductionMatrix.GetVariableNames();
-            foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Distance])
+            foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Angle])
             {
                 Dictionary<Quantity, Expr> CoffDict = [];
                 foreach (var kv in item.CoffDict.Skip(1))
@@ -902,59 +915,11 @@ public class EquationSolver
                         CoffDict.Add(kv.Key, kv.Value);
                     }
                 }
-                if (CoffDict.Count > 0)
+                var baseQuantity = item.CoffDict.Keys.First();
+                if (CoffDict.Count > 0 || cc.Contains(baseQuantity))
                 {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = AngularProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
-                }
-
-            }
-            foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Sin])
-            {
-                Dictionary<Quantity, Expr> CoffDict = [];
-                foreach (var kv in item.CoffDict.Skip(1))
-                {
-                    if (cc.Contains(kv.Key))
-                    {
-                        CoffDict.Add(kv.Key, kv.Value);
-                    }
-                }
-                if (CoffDict.Count > 0)
-                {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = AngularProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
-                }
-            }
-            foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Cos])
-            {
-                Dictionary<Quantity, Expr> CoffDict = [];
-                foreach (var kv in item.CoffDict.Skip(1))
-                {
-                    if (cc.Contains(kv.Key))
-                    {
-                        CoffDict.Add(kv.Key, kv.Value);
-                    }
-                }
-                if (CoffDict.Count > 0)
-                {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = AngularProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
-                }
-            }
-            foreach (var item in knowledgeBase.EqualityChains[QuantityClassifications.Tan])
-            {
-                Dictionary<Quantity, Expr> CoffDict = [];
-                foreach (var kv in item.CoffDict.Skip(1))
-                {
-                    if (cc.Contains(kv.Key))
-                    {
-                        CoffDict.Add(kv.Key, kv.Value);
-                    }
-                }
-                if (CoffDict.Count > 0)
-                {
-                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
-                    var b = AngularProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First());
+                    CoffDict.Add(baseQuantity, item.CoffDict[baseQuantity]);
+                    var b = AngularProductionMatrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, baseQuantity, item.Reasons.Select(r => r.reason));
                 }
             }
             var nks1 = AngularProductionMatrix.DiscoverRelations();
@@ -964,6 +929,222 @@ public class EquationSolver
             }
         }
         MatrixInferenced?.Invoke();
+    }
+    #endregion
+    #region Checkpoint
+    /// <summary>
+    /// </summary>
+    public class EquationSolverState
+    {
+        public int AngularLinerCount { get; set; }
+        public int AngularOtherCount { get; set; }
+        public int AngularProductionCount { get; set; }
+        public int DistanceLinerCount { get; set; }
+        public int DistanceOtherCount { get; set; }
+        public int DistanceProductionCount { get; set; }
+        public int OtherMixedCount { get; set; }
+        public List<EquationSystem> ReadyToTry { get; set; } = [];
+        public List<EquationSystem> Tried { get; set; } = [];
+        public List<EquationSystem> TooComplex { get; set; } = [];
+        public List<EquationSystem> EqSysInfos { get; set; } = [];
+        public List<EquationSystem> Ang { get; set; } = [];
+        public Dictionary<QuantityClassifications, List<EqualityChain>> Chains { get; set; } = [];
+    }
+
+    /// <summary>
+    /// </summary>
+    public virtual EquationSolverState CaptureState()
+    {
+        return new EquationSolverState
+        {
+            AngularLinerCount = AngularLinerPairedInfos.Count,
+            AngularOtherCount = AngularOtherPairedInfos.Count,
+            AngularProductionCount = AngularProductionPairedInfos.Count,
+            DistanceLinerCount = DistanceLinerPairedInfos.Count,
+            DistanceOtherCount = DistanceOtherPairedInfos.Count,
+            DistanceProductionCount = DistanceProductionPairedInfos.Count,
+            OtherMixedCount = OtherMixedPairedInfos.Count,
+            ReadyToTry = ReadyToTryEqSyms.Select(s => s.Clone()).ToList(),
+            Tried = TriedEqSyms.Select(s => s.Clone()).ToList(),
+            TooComplex = TooComplexEqsyms.Select(s => s.Clone()).ToList(),
+            EqSysInfos = eqSysInfos.Select(s => s.Clone()).ToList(),
+            Ang = ang.Select(s => s.Clone()).ToList(),
+            Chains = knowledgeBase.EqualityChains.ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value.Select(c => c.Clone()).ToList()),
+        };
+    }
+
+    /// <summary>
+    /// </summary>
+    public virtual void RestoreState(EquationSolverState state)
+    {
+        TruncateList(AngularLinerPairedInfos, state.AngularLinerCount);
+        TruncateList(AngularOtherPairedInfos, state.AngularOtherCount);
+        TruncateList(AngularProductionPairedInfos, state.AngularProductionCount);
+        TruncateList(DistanceLinerPairedInfos, state.DistanceLinerCount);
+        TruncateList(DistanceOtherPairedInfos, state.DistanceOtherCount);
+        TruncateList(DistanceProductionPairedInfos, state.DistanceProductionCount);
+        TruncateList(OtherMixedPairedInfos, state.OtherMixedCount);
+
+        ReadyToTryEqSyms = state.ReadyToTry.Select(s => s.Clone()).ToList();
+        TriedEqSyms = state.Tried.Select(s => s.Clone()).ToList();
+        TooComplexEqsyms = state.TooComplex.Select(s => s.Clone()).ToList();
+        eqSysInfos = state.EqSysInfos.Select(s => s.Clone()).ToList();
+        ang = state.Ang.Select(s => s.Clone()).ToList();
+
+        foreach (var unit in knowledgeBase.EqualityChains.Keys.ToList())
+        {
+            var list = knowledgeBase.EqualityChains[unit];
+            list.Clear();
+            if (state.Chains.TryGetValue(unit, out var chains))
+            {
+                list.AddRange(chains.Select(c => c.Clone()));
+            }
+        }
+        knowledgeBase.IndexContinuedDict.Clear();
+        foreach (var list in knowledgeBase.EqualityChains.Values)
+        {
+            foreach (var chain in list)
+            {
+                foreach (var quantity in chain.CoffDict.Keys)
+                {
+                    knowledgeBase.IndexContinuedDict[quantity] = chain;
+                }
+            }
+        }
+
+        RebuildMatrices();
+    }
+
+    static void TruncateList<T>(List<T> list, int count)
+    {
+        if (list.Count > count)
+            list.RemoveRange(count, list.Count - count);
+    }
+
+    protected virtual MapleBaseLinearMatrix CreateLinearMatrix() => new();
+    protected virtual MapleBaseProductionMatrix CreateProductionMatrix() => new();
+
+    void RebuildMatrices()
+    {
+        var oldDistanceLinear = DistanceLinearMatrix;
+        var oldAngularLinear = AngularLinearMatrix;
+        var oldDistanceProduction = DistanceProductionMatrix;
+        var oldAngularProduction = AngularProductionMatrix;
+
+        DistanceLinearMatrix = RebuildLinearMatrix(DistanceLinerPairedInfos, QuantityClassifications.Distance);
+        AngularLinearMatrix = RebuildLinearMatrix(AngularLinerPairedInfos, QuantityClassifications.Angle);
+        DistanceProductionMatrix = RebuildProductionMatrix(DistanceProductionPairedInfos, QuantityClassifications.Distance);
+        AngularProductionMatrix = RebuildProductionMatrix(AngularProductionPairedInfos, QuantityClassifications.Angle);
+
+        ReleaseMatrix(oldDistanceLinear);
+        ReleaseMatrix(oldAngularLinear);
+        ReleaseMatrix(oldDistanceProduction);
+        ReleaseMatrix(oldAngularProduction);
+    }
+
+    MapleBaseLinearMatrix RebuildLinearMatrix(List<PairedEqInfo> infos, QuantityClassifications unit)
+    {
+        var matrix = CreateLinearMatrix();
+        foreach (var info in infos)
+        {
+            if (info.Equation is LinearEquation le)
+                matrix.AddEquation(le.Coff, le.Constant, le);
+        }
+        ReplayLinearReductions(matrix, unit);
+        return matrix;
+    }
+
+    MapleBaseProductionMatrix RebuildProductionMatrix(List<PairedEqInfo> infos, QuantityClassifications unit)
+    {
+        var matrix = CreateProductionMatrix();
+        foreach (var info in infos)
+        {
+            if (info.Equation is ProductionEquation pe)
+                matrix.AddEquation(pe.Coff, pe.Constant, pe);
+        }
+        ReplayProductionReductions(matrix, unit);
+        return matrix;
+    }
+
+    /// <summary>
+    /// </summary>
+    protected virtual void ReplayLinearReductions(MapleBaseLinearMatrix matrix, QuantityClassifications unit)
+    {
+        var matrixVars = matrix.GetVariableNames();
+        foreach (var item in knowledgeBase.EqualityChains[unit])
+        {
+            Dictionary<Quantity, Expr> CoffDict = [];
+            if (item.CoffDict.Count == 1)
+            {
+                CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
+                matrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First(), item.Reasons.Select(r => r.reason));
+            }
+            else
+            {
+                foreach (var kv in item.CoffDict.Skip(1))
+                {
+                    if (matrixVars.Contains(kv.Key))
+                    {
+                        CoffDict.Add(kv.Key, kv.Value);
+                    }
+                }
+                if (CoffDict.Count > 0)
+                {
+                    CoffDict.Add(item.CoffDict.Keys.First(), item.CoffDict.Values.First());
+                    matrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, item.CoffDict.Keys.First(), item.Reasons.Select(r => r.reason));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// </summary>
+    protected virtual void ReplayProductionReductions(MapleBaseProductionMatrix matrix, QuantityClassifications matrixUnit)
+    {
+        var matrixVars = matrix.GetVariableNames();
+        var units = matrixUnit == QuantityClassifications.Angle
+            ? new[] { QuantityClassifications.Angle }
+            : new[]
+            {
+                QuantityClassifications.Distance,
+                QuantityClassifications.Sin,
+                QuantityClassifications.Cos,
+                QuantityClassifications.Tan
+            };
+        foreach (var unit in units)
+        {
+            foreach (var item in knowledgeBase.EqualityChains[unit])
+            {
+                Dictionary<Quantity, Expr> CoffDict = [];
+                foreach (var kv in item.CoffDict.Skip(1))
+                {
+                    if (matrixVars.Contains(kv.Key))
+                    {
+                        CoffDict.Add(kv.Key, kv.Value);
+                    }
+                }
+                var baseQuantity = item.CoffDict.Keys.First();
+                if (CoffDict.Count > 0 || matrixVars.Contains(baseQuantity))
+                {
+                    CoffDict.Add(baseQuantity, item.CoffDict[baseQuantity]);
+                    matrix.ReduceColumnsByContinuedEquality(CoffDict, item.ActualValue, baseQuantity, item.Reasons.Select(r => r.reason));
+                }
+            }
+        }
+    }
+
+    protected virtual void ReleaseMatrix(MapleBaseLinearMatrix matrix)
+    {
+        if (matrix is null) return;
+        try { matrix.RunCommand($"unassign('{matrix.MatrixName}'):"); } catch { }
+    }
+
+    protected virtual void ReleaseMatrix(MapleBaseProductionMatrix matrix)
+    {
+        if (matrix is null) return;
+        try { matrix.RunCommand($"unassign('{matrix.MatrixName}'):"); } catch { }
     }
     #endregion
 }
