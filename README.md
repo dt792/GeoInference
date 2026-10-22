@@ -62,6 +62,13 @@ Since inference involves algebraic solving and other compute-intensive tasks, **
 
 Therefore, choose a concurrency level that matches your actual hardware; on some machines, **a lower `MaxThreads` yields more stable and faster inference**.
 
+## Running Tests by Batch and Performance Recommendations
+
+The test program supports running individual batches separately. Although batches are executed sequentially using `await`, running multiple batches consecutively may still affect test performance. In practice, running a single batch often yields better performance. It is therefore recommended to select individual batches according to testing requirements. For example:
+
+```csharp
+await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+```
 ## Build & Run
 
 Running the system in the **Release** configuration is recommended, to avoid the extra runtime overhead of Debug mode and to obtain more stable inference performance.

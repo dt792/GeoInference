@@ -62,6 +62,14 @@ await tester.Test();
 
 因此，建议根据实际硬件配置选择合适的并发数；在部分机器上，**适当降低 `MaxThreads` 反而可以获得更稳定、更快的推理性能**。
 
+# 按批次运行测试与性能建议
+
+测试程序支持按批次单独运行。虽然各批次通过 `await` 顺序执行，但一次连续运行多个批次仍可能影响测试性能。实际测试中，单独运行某一批次通常表现更好，建议根据测试需求选择相应批次进行测试。例如：
+
+```csharp
+await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+```
+
 ## 构建与运行
 
 建议使用 **Release 配置**运行系统，以减少 Debug 模式带来的额外运行开销，并获得更稳定的推理性能。
