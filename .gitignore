@@ -5,7 +5,7 @@
 
 # Batch test / analysis result output: only keep FormalGeo7KL6_Reports
 result/*
-!result/FormalGeo7KL6_Reports/
+!result/FormalGeo7K_Reports/
 .vs/
 # ZTool is a separate repository (not tracked here)
 ZTool/

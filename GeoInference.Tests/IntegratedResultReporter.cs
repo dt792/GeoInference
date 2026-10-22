@@ -14,7 +14,37 @@ internal class IntegratedResultReporter
 {
     public const string DefaultResultPath = "..\\..\\..\\..\\Result";
 
-    private const string DatasetName = GeoProblemDataset.FormalGeo7KL6;
+    /// <summary>
+    /// 解决方案文件名，用于定位解决方案根目录。
+    /// </summary>
+    private const string SolutionFileName = "GeoInference.slnx";
+
+    /// <summary>
+    /// 报告目录名（不绑定单一层级）：报告覆盖 FormalGeo7K 的 L1~L6 全部层级。
+    /// </summary>
+    private const string ReportGroupName = "FormalGeo7K";
+
+    /// <summary>
+    /// 推理结果与报告的根目录（绝对路径）。推理结果的读写与报告输出共用此目录，
+    /// 避免因进程工作目录不同而导致结果与报告落在不同位置。
+    /// </summary>
+    public static string ResultRoot { get; } = ResolveResultRoot();
+
+    /// <summary>
+    /// 从可执行文件所在目录向上定位解决方案根目录，返回其中的 Result 目录；
+    /// 找不到解决方案文件时退回 <see cref="DefaultResultPath"/> 的原有相对路径语义。
+    /// </summary>
+    public static string ResolveResultRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, SolutionFileName)))
+                return Path.Combine(dir.FullName, "Result");
+            dir = dir.Parent;
+        }
+        return Path.GetFullPath(DefaultResultPath);
+    }
 
     public static readonly string[] AllDatasets =
     {
@@ -26,7 +56,10 @@ internal class IntegratedResultReporter
         GeoProblemDataset.FormalGeo7KL6,
     };
 
-    public string ReportDir => Path.Combine(DefaultResultPath, $"{DatasetName}_Reports");
+    /// <summary>
+    /// 报告输出目录：<c>Result/FormalGeo7K_Reports</c>（含 L1~L6 层级子目录）。
+    /// </summary>
+    public string ReportDir => Path.Combine(ResultRoot, $"{ReportGroupName}_Reports");
 
     private string _levelOutputDir = null;
     private string CurrentOutputDir => _levelOutputDir ?? ReportDir;
@@ -91,6 +124,7 @@ internal class IntegratedResultReporter
 
     public void GenerateAllLevelReports()
     {
+        Directory.CreateDirectory(ReportDir);
         InitTotals();
         var mriPlots = new List<(string Level, Plot Plot)>();
         var smriPlots = new List<(string Level, Plot Plot)>();
@@ -163,8 +197,9 @@ internal class IntegratedResultReporter
         GenerateCombinedCompressionRateChart(smriPlots, "Solved-state");
     }
 
-    public void LoadData(string datasetName, string config, Dictionary<string, GeoInferenceResult> results, string resultDir = GeoInferenceTester.DefaultResultPath)
+    public void LoadData(string datasetName, string config, Dictionary<string, GeoInferenceResult> results, string resultDir = null)
     {
+        resultDir ??= ResultRoot;
         var dataDir = Path.Combine(resultDir, $"{datasetName}_{config}");
         if (!Directory.Exists(dataDir)) return;
         results.Clear();

@@ -30,7 +30,7 @@
 
 下图展示了本方法中**规则实例化**与**知识实例化**的压缩归约效果。
 
-![CompassionAndReduction](Result/FormalGeo7KL6_Reports/CompressionRate.png)
+![CompassionAndReduction](Result/FormalGeo7K_Reports/Solved-state.png)
 
 ## 实验结果
 

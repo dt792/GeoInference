@@ -30,7 +30,7 @@ Based on this method, the **KM-SCR** geometry theorem reasoning system achieves 
 
 The figure below shows the compression/reduction effect of **rule instantiation** and **knowledge instantiation** in this method.
 
-![CompassionAndReduction](Result/FormalGeo7KL6_Reports/CompressionRate.png)
+![CompassionAndReduction](Result/FormalGeo7K_Reports/Solved-state.png)
 
 ## Experimental Results
 
