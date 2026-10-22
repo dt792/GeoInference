@@ -16,37 +16,37 @@ public static class KnowledgeTimeline
 
     public static void Start()
     {
-#if DEBUG
-        lock (_lock)
-        {
-            _times.Clear();
-            _flushedCount = 0;
-            _lastFlushTicks = 0;
-            try
-            {
-                if (OutputPath is not null && File.Exists(OutputPath))
-                    File.Delete(OutputPath);
-            }
-            catch { }
-            _sw.Restart();
-        }
-#endif
+//#if DEBUG
+//        lock (_lock)
+//        {
+//            _times.Clear();
+//            _flushedCount = 0;
+//            _lastFlushTicks = 0;
+//            try
+//            {
+//                if (OutputPath is not null && File.Exists(OutputPath))
+//                    File.Delete(OutputPath);
+//            }
+//            catch { }
+//            _sw.Restart();
+//        }
+//#endif
     }
 
     public static void Record()
     {
-#if DEBUG
-        if (!_sw.IsRunning)
-            return;
-        lock (_lock)
-        {
-            _times.Add(_sw.Elapsed.TotalSeconds);
-            bool needFlush = _times.Count - _flushedCount >= 200
-                || _sw.ElapsedTicks - _lastFlushTicks >= Stopwatch.Frequency * 2;
-            if (needFlush)
-                FlushLocked();
-        }
-#endif
+//#if DEBUG
+//        if (!_sw.IsRunning)
+//            return;
+//        lock (_lock)
+//        {
+//            _times.Add(_sw.Elapsed.TotalSeconds);
+//            bool needFlush = _times.Count - _flushedCount >= 200
+//                || _sw.ElapsedTicks - _lastFlushTicks >= Stopwatch.Frequency * 2;
+//            if (needFlush)
+//                FlushLocked();
+//        }
+//#endif
     }
 
     public static void Flush()

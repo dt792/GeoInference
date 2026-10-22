@@ -329,7 +329,7 @@ public class MapleApp
 
     private void cbStatus(IntPtr data, IntPtr used, IntPtr alloc, double time)
     {
-        Console.WriteLine($"[cbStatus] -> cputime={time}; memory used={used.ToInt64()}kB alloc={alloc.ToInt64()}kB");
+        //Console.WriteLine($"[cbStatus] -> cputime={time}; memory used={used.ToInt64()}kB alloc={alloc.ToInt64()}kB");
     }
 
     private string ConvertAbsExpr(string command)

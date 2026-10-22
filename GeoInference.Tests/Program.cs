@@ -8,7 +8,7 @@ GeoProblemDataset.Instance.RebuildIndex(GeoProblemDataset.DatasetPath);
 ////batch test
 IntegratedTester tester = new IntegratedTester();
 //"Excessive threads during the inference process may cause calculation errors, resulting in the return of a time string. Reducing the number of threads can help mitigate this issue.";
-tester.MaxThreads = 8;
+tester.MaxThreads = 5;
 await tester.Test();
 
 //Run("3026", "FormalGeo7KL2");

@@ -814,13 +814,13 @@ public class EquationSolver
                 
             }
             var nks1 = AngularLinearMatrix.DiscoverRelations();
-            if (Environment.GetEnvironmentVariable("GEO_DIAG_MATRIX") == "1")
-            {
-                Console.WriteLine("[DiagMatrix] ==== Angular RREF ====");
-                Console.WriteLine(AngularLinearMatrix.GetCompleteMatrixString());
-                Console.WriteLine("[DiagMatrix] ==== Discovered ====");
-                foreach (var item in nks1) Console.WriteLine("[DiagMatrix]   " + item);
-            }
+            //if (Environment.GetEnvironmentVariable("GEO_DIAG_MATRIX") == "1")
+            //{
+            //    Console.WriteLine("[DiagMatrix] ==== Angular RREF ====");
+            //    Console.WriteLine(AngularLinearMatrix.GetCompleteMatrixString());
+            //    Console.WriteLine("[DiagMatrix] ==== Discovered ====");
+            //    foreach (var item in nks1) Console.WriteLine("[DiagMatrix]   " + item);
+            //}
             QuantityEquationMatrixUpdated?.Invoke(AngularLinearMatrix);
             foreach (var item in nks1)
             {

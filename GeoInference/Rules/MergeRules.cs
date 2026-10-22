@@ -4,7 +4,6 @@ using System.Text;
 
 namespace GeoInference.Rules;
 
-
 [RuleType(RuleType.BaseFigureSearching)]
 public class FineLinesRules : RuleClass
 {

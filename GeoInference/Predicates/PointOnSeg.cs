@@ -7,10 +7,6 @@ public class PointOnSeg : Predicate
         Add(point, endPoint1, endPoint2);
         Normalize();
         SetHashCode();
-#if DEBUG
-        if (Point == EndPoint1 || Point == EndPoint2 || EndPoint1 == EndPoint2)
-            throw new ArgumentException($"PointOnSeg 构造非法：中间点与端点重合或两端点相同：{this}");
-#endif
     }
     public Point Point { get => (Point)Properties[0]; }
     public Point EndPoint1 { get => (Point)Properties[1]; }

@@ -69,45 +69,45 @@ public class KM_SCR_DiscoveringEngine : IInferenceEngine
             KnowledgeBase.LastRoundKnowledges.Clear();
             KnowledgeBase.LastRoundKnowledges.AddRange(KnowledgeBase.NewKnowledges);
             KnowledgeBase.NewKnowledges.Clear();
-            ZLog.StartStopwatch("Rule");
+            //ZLog.StartStopwatch("Rule");
             ProductionRuleSolver.MakeNew();
-            ZLog.StopStopwatch("Rule");
+            //ZLog.StopStopwatch("Rule");
             while (ProductionRuleSolver.HasNext && !TargetBase.AllSolved)
             {
                 var pair = ProductionRuleSolver.Next();
                 if (pair.RuleInfo.IsSemiRule)
                 {
-                    ZLog.StartStopwatch("SemiRule");
+                    //ZLog.StartStopwatch("SemiRule");
                     ProductionRuleSolver.Solve(pair);
-                    ZLog.StopStopwatch("SemiRule");
+                    //ZLog.StopStopwatch("SemiRule");
                 }
                 else
                 {
-                    ZLog.StartStopwatch("Rule");
+                    //ZLog.StartStopwatch("Rule");
                     ProductionRuleSolver.Solve(pair);
-                    ZLog.StopStopwatch("Rule");
+                    //ZLog.StopStopwatch("Rule");
                 }
             }
 
 
-            ZLog.StartStopwatch("EqSym");
+            //ZLog.StartStopwatch("EqSym");
             eqSolver.SolveEqSym();
-            ZLog.StopStopwatch("EqSym");
+            //ZLog.StopStopwatch("EqSym");
 
-            ZLog.StartStopwatch("Matrix");
+            //ZLog.StartStopwatch("Matrix");
             eqSolver.SolveMatrix();
-            ZLog.StopStopwatch("Matrix");
+            //ZLog.StopStopwatch("Matrix");
 
-            ZLog.StartStopwatch("SemiRule");
-            ZLog.StartStopwatch("SemiRule_Check");
+            //ZLog.StartStopwatch("SemiRule");
+            //ZLog.StartStopwatch("SemiRule_Check");
             ConditionalKnowledgeSolver.MakeNew();
             while (ConditionalKnowledgeSolver.HasNext)
             {
                 var obj = ConditionalKnowledgeSolver.Next();
                 ConditionalKnowledgeSolver.Solve(obj);
             }
-            ZLog.StopStopwatch("SemiRule_Check");
-            ZLog.StopStopwatch("SemiRule");
+            //ZLog.StopStopwatch("SemiRule_Check");
+            //ZLog.StopStopwatch("SemiRule");
 
             round++;
             ZLog.Info($"Round {round} of reasoning yielded a total of {KnowledgeBase.NewKnowledges}");
