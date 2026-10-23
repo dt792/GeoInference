@@ -13,42 +13,42 @@ public class IntegratedTester
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         GeoInferenceTester tester = new GeoInferenceTester();
+        //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL5, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
         //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
         //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
         //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL5, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        //await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
         //-----
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
-
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
-
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
-
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
 
         await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL5, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
         await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL5, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
         await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL5, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
         await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL5, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
 
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
-        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL6, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL4, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
+
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL3, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
+
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL2, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
+
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.Solving), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.SolvingNoSimplifyEqSym), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.Discovering), maxConcurrency: MaxThreads);
+        await tester.RunBatchAsync(GeoProblemDataset.FormalGeo7KL1, Exculed, nameof(GeoInferenceConfigs.SolvingNoCompassMatrix), maxConcurrency: MaxThreads);
 
         stopwatch.Stop();
         Console.WriteLine($"✅ Finished. duration :{stopwatch.Elapsed}");
