@@ -1298,6 +1298,16 @@ internal class IntegratedResultReporter
             plot.Axes.Bottom.TickLabelStyle.FontSize = 50;
             plot.Axes.Left.Label.FontSize = 54;
 
+            if (fileName == "Solved-state")
+            {
+                string[] groupNames = CompressionRateGroupNames
+                    .Select(name => name == "Figure" ? "Object" : name)
+                    .ToArray();
+                plot.Axes.Bottom.SetTicks(
+                    Enumerable.Range(0, groupNames.Length).Select(i => (double)i).ToArray(),
+                    groupNames);
+            }
+
             // Tighten the spacing between subplots: remove the minimum axis sizes and
             // the outer label padding so adjacent subplots sit closer together.
             plot.Axes.Left.MinimumSize = 0;
@@ -1476,7 +1486,7 @@ internal class IntegratedResultReporter
         plot.Axes.Bottom.TickLabelStyle.Alignment = Alignment.MiddleRight;
 
         plot.Axes.Bottom.Label.FontSize = 44;
-        plot.Axes.Bottom.Label.Text = "Params Count";
+        plot.Axes.Bottom.Label.Text = "Number of Rule Parameters";
 
         /* ================================
          * Y axis Log10 display
@@ -1559,7 +1569,7 @@ internal class IntegratedResultReporter
         {
             legendItems.Add(new ScottPlot.LegendItem()
             {
-                LabelText = "Count \u2264 10⁷",
+                LabelText = "MRI \u2264 10⁷",
                 FillColor = barMainColor,
                 OutlineColor = barMainColor,
                 OutlineWidth = 1,
@@ -1573,7 +1583,7 @@ internal class IntegratedResultReporter
         // Orange highlight legend item
         legendItems.Add(new ScottPlot.LegendItem()
         {
-            LabelText = "Count > 10⁷",
+            LabelText = "MRI > 10⁷",
             FillColor = orangeHighlight,
             OutlineColor = orangeHighlight,
             OutlineWidth = 1,
@@ -1737,11 +1747,12 @@ internal class IntegratedResultReporter
 
         plot.Title(title);
         plot.Axes.Title.Label.FontSize = 0;
-        plot.Axes.Bottom.TickLabelStyle.Alignment = Alignment.MiddleRight;
+        plot.Axes.Bottom.TickLabelStyle.Alignment = Alignment.MiddleCenter;
         // Shift the rotated tick labels downward so they do not touch the axis frame
-        plot.Axes.Bottom.TickLabelStyle.OffsetY = 18;
+        plot.Axes.Bottom.TickLabelStyle.OffsetY = 180;
         // Reserve extra vertical space so the rotated tick labels do not overlap the (a)/(b)/(c) label below
         plot.Axes.Bottom.MinimumSize = 580;
+        plot.Axes.Right.MinimumSize = 180;
         SavePlot(plot, title + "_Log");
         return plot;
     }
