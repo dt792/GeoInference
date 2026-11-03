@@ -1236,9 +1236,9 @@ internal class IntegratedResultReporter
     public Plot SolvingCompressionRate() => CompressionRate(SolvingResults, nameof(SolvingCompressionRate));
 
     internal static readonly string[] CompressionRateGroupNames =
-        { "Figure", "Relation", "Global Pred", "Merged MRI", "Semi MRI", "Global MRI" };
+        { "Object", "Relation", "Global Pred", "Merged MRI", "Semi MRI", "Global MRI" };
 
-    // Grouped palette: cool blues for knowledge/object level (Figure/Relation/Global Pred),
+    // Grouped palette: cool blues for knowledge/object level (Object/Relation/Global Pred),
     // same-hue warm oranges with different depth for the MRI variants (Merged/Semi/Global MRI)
     internal static readonly Color[] CompressionRateGroupedColors =
     {
@@ -1297,16 +1297,6 @@ internal class IntegratedResultReporter
             plot.Axes.Left.TickLabelStyle.FontSize = 50;
             plot.Axes.Bottom.TickLabelStyle.FontSize = 50;
             plot.Axes.Left.Label.FontSize = 54;
-
-            if (fileName == "Solved-state")
-            {
-                string[] groupNames = CompressionRateGroupNames
-                    .Select(name => name == "Figure" ? "Object" : name)
-                    .ToArray();
-                plot.Axes.Bottom.SetTicks(
-                    Enumerable.Range(0, groupNames.Length).Select(i => (double)i).ToArray(),
-                    groupNames);
-            }
 
             // Tighten the spacing between subplots: remove the minimum axis sizes and
             // the outer label padding so adjacent subplots sit closer together.
@@ -1749,7 +1739,7 @@ internal class IntegratedResultReporter
         plot.Axes.Title.Label.FontSize = 0;
         plot.Axes.Bottom.TickLabelStyle.Alignment = Alignment.MiddleCenter;
         // Shift the rotated tick labels downward so they do not touch the axis frame
-        plot.Axes.Bottom.TickLabelStyle.OffsetY = 180;
+        plot.Axes.Bottom.TickLabelStyle.OffsetY = 210;
         // Reserve extra vertical space so the rotated tick labels do not overlap the (a)/(b)/(c) label below
         plot.Axes.Bottom.MinimumSize = 580;
         plot.Axes.Right.MinimumSize = 180;
